@@ -1,0 +1,157 @@
+import axios from 'axios';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor for error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth API
+export const authAPI = {
+  login: (loginId, password) =>
+    api.post('/auth/login', { loginId, password }),
+  
+  forgotPassword: (loginId) =>
+    api.post('/auth/forgot-password', { loginId }),
+  
+  resetPassword: (otp, newPassword) =>
+    api.post('/auth/reset-password', { otp, newPassword }),
+};
+
+// Restaurant API
+export const restaurantAPI = {
+  getAll: () => api.get('/restaurants'),
+  
+  getById: (restaurantId) => api.get(`/restaurants/${restaurantId}`),
+  
+  create: (data) => api.post('/restaurants', data),
+  
+  update: (restaurantId, data) => api.put(`/restaurants/${restaurantId}`, data),
+  
+  patch: (restaurantId, data) => api.patch(`/restaurants/${restaurantId}`, data),
+  
+  delete: (restaurantId) => api.delete(`/restaurants/${restaurantId}`),
+};
+
+// User API
+export const userAPI = {
+  getAll: () => api.get('/users'),
+  
+  getById: (userId) => api.get(`/users/${userId}`),
+  
+  create: (data) => api.post('/users', data),
+  
+  update: (userId, data) => api.put(`/users/${userId}`, data),
+  
+  patch: (userId, data) => api.patch(`/users/${userId}`, data),
+  
+  delete: (userId) => api.delete(`/users/${userId}`),
+  
+  findByUserName: (username) => 
+    api.get(`/userEntities/search/findByUserName?username=${username}`),
+};
+
+// Item API
+export const itemAPI = {
+  getAll: () => api.get('/items'),
+  
+  getById: (itemId) => api.get(`/items/${itemId}`),
+  
+  create: (items) => api.post('/items', Array.isArray(items) ? items : [items]),
+  
+  update: (itemId, data) => api.put(`/items/${itemId}`, data),
+  
+  patch: (itemId, data) => api.patch(`/items/${itemId}`, data),
+  
+  delete: (itemId) => api.delete(`/items/${itemId}`),
+};
+
+// Price API
+export const priceAPI = {
+  getAll: () => api.get('/prices'),
+  
+  getById: (priceId) => api.get(`/prices/${priceId}`),
+  
+  create: (data) => api.post('/prices', data),
+  
+  update: (priceId, data) => api.put(`/prices/${priceId}`, data),
+  
+  patch: (priceId, data) => api.patch(`/prices/${priceId}`, data),
+  
+  delete: (priceId) => api.delete(`/prices/${priceId}`),
+};
+
+// Service Type API
+export const serviceTypeAPI = {
+  getAll: () => api.get('/service-types'),
+  
+  getById: (serviceTypeId) => api.get(`/service-types/${serviceTypeId}`),
+  
+  create: (data) => api.post('/service-types', data),
+  
+  update: (serviceTypeId, data) => api.put(`/service-types/${serviceTypeId}`, data),
+  
+  patch: (serviceTypeId, data) => api.patch(`/service-types/${serviceTypeId}`, data),
+  
+  delete: (serviceTypeId) => api.delete(`/service-types/${serviceTypeId}`),
+};
+
+// Additional Pricing API
+export const additionalPricingAPI = {
+  getAll: () => api.get('/additional-pricings'),
+  
+  getById: (id) => api.get(`/additional-pricings/${id}`),
+  
+  create: (data) => api.post('/additional-pricings', data),
+  
+  update: (id, data) => api.put(`/additional-pricings/${id}`, data),
+  
+  patch: (id, data) => api.patch(`/additional-pricings/${id}`, data),
+  
+  delete: (id) => api.delete(`/additional-pricings/${id}`),
+};
+
+// Order API
+export const orderAPI = {
+  getAll: () => api.get('/orders'),
+  
+  getById: (orderId) => api.get(`/orders/${orderId}`),
+  
+  create: (data) => api.post('/orders', data),
+  
+  update: (orderId, data) => api.put(`/orders/${orderId}`, data),
+  
+  patch: (orderId, data) => api.patch(`/orders/${orderId}`, data),
+  
+  delete: (orderId) => api.delete(`/orders/${orderId}`),
+};
+
+export default api;
