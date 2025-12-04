@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { restaurantAPI } from '../services/api';
+import ImageUpload from '../components/ImageUpload';
 import './RestaurantManagement.css';
 
 const RestaurantManagement = () => {
@@ -11,20 +12,18 @@ const RestaurantManagement = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-  const [formError, setFormError] = useState('');
-
-  const [restaurantForm, setRestaurantForm] = useState({
-    restaurantName: '',
-    restaurantAddress: '',
-    restaurantPhone: '',
-    restaurantEmail: '',
-    restaurantDescription: '',
-    restaurantImage: '',
-    restaurantStatus: 'active',
-    openingTime: '09:00',
-    closingTime: '22:00',
-    restaurantType: 'casual_dining'
+  
+  // Form state - using camelCase for internal state
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    gstNo: '',
+    primaryContactNumber: '',
+    primaryEmailId: '',
+    imageUrl: ''
   });
+  
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     fetchRestaurants();
@@ -34,6 +33,7 @@ const RestaurantManagement = () => {
     try {
       setLoading(true);
       const response = await restaurantAPI.getAll();
+      console.log('Fetched restaurants:', response.data);
       setRestaurants(response.data);
     } catch (error) {
       console.error('Error fetching restaurants:', error);
@@ -43,59 +43,79 @@ const RestaurantManagement = () => {
   };
 
   const resetForm = () => {
-    setRestaurantForm({
-      restaurantName: '',
-      restaurantAddress: '',
-      restaurantPhone: '',
-      restaurantEmail: '',
-      restaurantDescription: '',
-      restaurantImage: '',
-      restaurantStatus: 'active',
-      openingTime: '09:00',
-      closingTime: '22:00',
-      restaurantType: 'casual_dining'
+    setFormData({
+      name: '',
+      address: '',
+      gstNo: '',
+      primaryContactNumber: '',
+      primaryEmailId: '',
+      imageUrl: ''
     });
     setFormError('');
+  };
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      setFormError('Restaurant name is required');
+      return false;
+    }
+    if (!formData.address.trim()) {
+      setFormError('Address is required');
+      return false;
+    }
+    if (!formData.primaryContactNumber.trim()) {
+      setFormError('Contact number is required');
+      return false;
+    }
+    if (!formData.primaryEmailId.trim()) {
+      setFormError('Email is required');
+      return false;
+    }
+    return true;
   };
 
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
     setFormError('');
 
-    // Validation
-    if (!restaurantForm.restaurantName.trim()) {
-      setFormError('Restaurant name is required');
-      return;
-    }
-
-    if (!restaurantForm.restaurantPhone.trim()) {
-      setFormError('Phone number is required');
+    if (!validateForm()) {
       return;
     }
 
     setLoading(true);
 
     try {
-      await restaurantAPI.create({
-        restaurant_name: restaurantForm.restaurantName,
-        restaurant_address: restaurantForm.restaurantAddress,
-        restaurant_phone: restaurantForm.restaurantPhone,
-        restaurant_email: restaurantForm.restaurantEmail,
-        restaurant_description: restaurantForm.restaurantDescription,
-        restaurant_image: restaurantForm.restaurantImage,
-        restaurant_status: restaurantForm.restaurantStatus,
-        opening_time: restaurantForm.openingTime,
-        closing_time: restaurantForm.closingTime,
-        restaurant_type: restaurantForm.restaurantType
-      });
+      // Create request with exact field names matching backend
+      const requestData = {
+        name: formData.name,
+        address: formData.address,
+        gst_no: formData.gstNo,  // Backend expects gst_no
+        primaryEmailId: formData.primaryEmailId,
+        primaryContactNumber: formData.primaryContactNumber
+      };
+
+      // Only add imageUrl if it exists
+      if (formData.imageUrl && formData.imageUrl.trim()) {
+        requestData.imageUrl = formData.imageUrl;
+      }
+
+      console.log('=== SENDING TO BACKEND ===');
+      console.log('Request Data:', JSON.stringify(requestData, null, 2));
+      
+      const response = await restaurantAPI.create(requestData);
+      
+      console.log('=== BACKEND RESPONSE ===');
+      console.log('Response:', response.data);
 
       alert('Restaurant added successfully!');
       setShowAddModal(false);
       resetForm();
       fetchRestaurants();
     } catch (error) {
-      console.error('Error adding restaurant:', error);
-      setFormError(error.response?.data?.message || 'Failed to add restaurant');
+      console.error('=== ERROR ===');
+      console.error('Error:', error);
+      console.error('Response:', error.response?.data);
+      setFormError(error.response?.data?.message || 'Failed to add restaurant. Check console for details.');
     } finally {
       setLoading(false);
     }
@@ -105,27 +125,40 @@ const RestaurantManagement = () => {
     e.preventDefault();
     setFormError('');
 
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await restaurantAPI.patch(selectedRestaurant.restaurantId || selectedRestaurant.restaurant_id, {
-        restaurant_name: restaurantForm.restaurantName,
-        restaurant_address: restaurantForm.restaurantAddress,
-        restaurant_phone: restaurantForm.restaurantPhone,
-        restaurant_email: restaurantForm.restaurantEmail,
-        restaurant_description: restaurantForm.restaurantDescription,
-        restaurant_image: restaurantForm.restaurantImage,
-        restaurant_status: restaurantForm.restaurantStatus,
-        opening_time: restaurantForm.openingTime,
-        closing_time: restaurantForm.closingTime,
-        restaurant_type: restaurantForm.restaurantType
-      });
+      // Create request with exact field names matching backend
+      const requestData = {
+        name: formData.name,
+        address: formData.address,
+        gst_no: formData.gstNo,  // Backend expects gst_no
+        primaryEmailId: formData.primaryEmailId,
+        primaryContactNumber: formData.primaryContactNumber
+      };
+
+      // Only add imageUrl if it exists
+      if (formData.imageUrl && formData.imageUrl.trim()) {
+        requestData.imageUrl = formData.imageUrl;
+      }
+
+      console.log('=== UPDATING RESTAURANT ===');
+      console.log('Restaurant ID:', selectedRestaurant.rest_id || selectedRestaurant.restId);
+      console.log('Request Data:', JSON.stringify(requestData, null, 2));
+      
+      await restaurantAPI.patch(selectedRestaurant.rest_id || selectedRestaurant.restId, requestData);
 
       alert('Restaurant updated successfully!');
       setShowEditModal(false);
       fetchRestaurants();
     } catch (error) {
-      console.error('Error updating restaurant:', error);
+      console.error('=== ERROR ===');
+      console.error('Error:', error);
+      console.error('Response:', error.response?.data);
       setFormError(error.response?.data?.message || 'Failed to update restaurant');
     } finally {
       setLoading(false);
@@ -153,19 +186,22 @@ const RestaurantManagement = () => {
 
   const openEditModal = (restaurant) => {
     setSelectedRestaurant(restaurant);
-    setRestaurantForm({
-      restaurantName: restaurant.restaurantName || restaurant.restaurant_name,
-      restaurantAddress: restaurant.restaurantAddress || restaurant.restaurant_address || '',
-      restaurantPhone: restaurant.restaurantPhone || restaurant.restaurant_phone || '',
-      restaurantEmail: restaurant.restaurantEmail || restaurant.restaurant_email || '',
-      restaurantDescription: restaurant.restaurantDescription || restaurant.restaurant_description || '',
-      restaurantImage: restaurant.restaurantImage || restaurant.restaurant_image || '',
-      restaurantStatus: restaurant.restaurantStatus || restaurant.restaurant_status || 'active',
-      openingTime: restaurant.openingTime || restaurant.opening_time || '09:00',
-      closingTime: restaurant.closingTime || restaurant.closing_time || '22:00',
-      restaurantType: restaurant.restaurantType || restaurant.restaurant_type || 'casual_dining'
+    
+    // Map response fields to form state
+    setFormData({
+      name: restaurant.name || '',
+      address: restaurant.address || '',
+      gstNo: restaurant.gst_no || restaurant.gstNo || '',
+      primaryContactNumber: restaurant.primaryContactNumber || '',
+      primaryEmailId: restaurant.primaryEmailId || '',
+      imageUrl: restaurant.imageUrl || ''
     });
+    
     setShowEditModal(true);
+  };
+
+  const handleImageUpload = (imageUrl) => {
+    setFormData({ ...formData, imageUrl });
   };
 
   return (
@@ -193,7 +229,7 @@ const RestaurantManagement = () => {
       {/* Main Content */}
       <main className="restaurant-main">
         <div className="container">
-          {/* Add Restaurant Button */}
+          {/* Header */}
           <div className="restaurant-header fade-in">
             <h2>Restaurants</h2>
             <button
@@ -223,70 +259,48 @@ const RestaurantManagement = () => {
             <div className="restaurants-grid fade-in" style={{ animationDelay: '0.1s' }}>
               {restaurants.map((restaurant, index) => (
                 <div
-                  key={restaurant.restaurantId || restaurant.restaurant_id}
+                  key={restaurant.rest_id || restaurant.restId}
                   className="restaurant-card card"
                   style={{ animationDelay: `${0.1 + index * 0.05}s` }}
                 >
                   <div className="restaurant-image">
-                    {restaurant.restaurantImage || restaurant.restaurant_image ? (
-                      <img 
-                        src={restaurant.restaurantImage || restaurant.restaurant_image} 
-                        alt={restaurant.restaurantName || restaurant.restaurant_name} 
-                      />
+                    {restaurant.imageUrl ? (
+                      <img src={restaurant.imageUrl} alt={restaurant.name} />
                     ) : (
                       <div className="placeholder-image">
                         <span>🏪</span>
                       </div>
                     )}
-                    <span className={`status-badge ${restaurant.restaurantStatus || restaurant.restaurant_status}`}>
-                      {restaurant.restaurantStatus || restaurant.restaurant_status}
-                    </span>
                   </div>
 
                   <div className="restaurant-content">
-                    <h3>{restaurant.restaurantName || restaurant.restaurant_name}</h3>
+                    <h3>{restaurant.name}</h3>
                     
                     <div className="restaurant-info">
                       <div className="info-item">
                         <span className="icon">📍</span>
-                        <span className="text">
-                          {restaurant.restaurantAddress || restaurant.restaurant_address || 'No address'}
-                        </span>
+                        <span className="text">{restaurant.address || 'No address'}</span>
                       </div>
 
                       <div className="info-item">
                         <span className="icon">📞</span>
-                        <span className="text">
-                          {restaurant.restaurantPhone || restaurant.restaurant_phone || 'No phone'}
-                        </span>
+                        <span className="text">{restaurant.primaryContactNumber || 'No phone'}</span>
                       </div>
 
-                      {(restaurant.restaurantEmail || restaurant.restaurant_email) && (
+                      {restaurant.primaryEmailId && (
                         <div className="info-item">
                           <span className="icon">✉️</span>
-                          <span className="text">
-                            {restaurant.restaurantEmail || restaurant.restaurant_email}
-                          </span>
+                          <span className="text">{restaurant.primaryEmailId}</span>
                         </div>
                       )}
 
-                      <div className="info-item">
-                        <span className="icon">🕐</span>
-                        <span className="text">
-                          {restaurant.openingTime || restaurant.opening_time} - {restaurant.closingTime || restaurant.closing_time}
-                        </span>
-                      </div>
-
-                      <div className="info-item">
-                        <span className="badge">{restaurant.restaurantType || restaurant.restaurant_type}</span>
-                      </div>
+                      {(restaurant.gst_no || restaurant.gstNo) && (
+                        <div className="info-item">
+                          <span className="icon">🆔</span>
+                          <span className="text">GST: {restaurant.gst_no || restaurant.gstNo}</span>
+                        </div>
+                      )}
                     </div>
-
-                    {(restaurant.restaurantDescription || restaurant.restaurant_description) && (
-                      <p className="restaurant-description">
-                        {restaurant.restaurantDescription || restaurant.restaurant_description}
-                      </p>
-                    )}
 
                     <div className="restaurant-actions">
                       <button
@@ -298,7 +312,7 @@ const RestaurantManagement = () => {
                       <button
                         className="btn btn-sm"
                         style={{ background: 'var(--error)', color: 'white' }}
-                        onClick={() => handleDeleteRestaurant(restaurant.restaurantId || restaurant.restaurant_id)}
+                        onClick={() => handleDeleteRestaurant(restaurant.rest_id || restaurant.restId)}
                       >
                         Delete
                       </button>
@@ -327,6 +341,18 @@ const RestaurantManagement = () => {
                 </div>
               )}
 
+              {/* Image Upload (Optional) */}
+              <div className="form-section">
+                <h3>Restaurant Photo (Optional)</h3>
+                <ImageUpload
+                  currentImage={formData.imageUrl}
+                  onImageChange={handleImageUpload}
+                  uploadType="restaurant"
+                  label="Upload Restaurant Photo"
+                />
+              </div>
+
+              {/* Basic Information */}
               <div className="form-section">
                 <h3>Basic Information</h3>
 
@@ -336,31 +362,32 @@ const RestaurantManagement = () => {
                     type="text"
                     className="input"
                     placeholder="e.g., The Golden Spoon"
-                    value={restaurantForm.restaurantName}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantName: e.target.value})}
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
                     required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Description</label>
+                  <label className="input-label">Address *</label>
                   <textarea
                     className="textarea"
-                    placeholder="Brief description of your restaurant"
-                    value={restaurantForm.restaurantDescription}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantDescription: e.target.value})}
+                    placeholder="Full restaurant address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
                     rows="3"
+                    required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Address</label>
-                  <textarea
-                    className="textarea"
-                    placeholder="Full restaurant address"
-                    value={restaurantForm.restaurantAddress}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantAddress: e.target.value})}
-                    rows="2"
+                  <label className="input-label">GST Number (Optional)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="e.g., 22AAAAA0000A1Z5"
+                    value={formData.gstNo}
+                    onChange={(e) => setFormData({...formData, gstNo: e.target.value})}
                   />
                 </div>
 
@@ -370,90 +397,22 @@ const RestaurantManagement = () => {
                     <input
                       type="tel"
                       className="input"
-                      placeholder="e.g., +91 1234567890"
-                      value={restaurantForm.restaurantPhone}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantPhone: e.target.value})}
+                      placeholder="e.g., 9876543210"
+                      value={formData.primaryContactNumber}
+                      onChange={(e) => setFormData({...formData, primaryContactNumber: e.target.value})}
                       required
                     />
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">Email</label>
+                    <label className="input-label">Email *</label>
                     <input
                       type="email"
                       className="input"
                       placeholder="restaurant@example.com"
-                      value={restaurantForm.restaurantEmail}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantEmail: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Image URL (optional)</label>
-                  <input
-                    type="url"
-                    className="input"
-                    placeholder="https://example.com/restaurant-image.jpg"
-                    value={restaurantForm.restaurantImage}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantImage: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h3>Operating Details</h3>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Restaurant Type</label>
-                    <select
-                      className="select"
-                      value={restaurantForm.restaurantType}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantType: e.target.value})}
-                    >
-                      <option value="fine_dining">Fine Dining</option>
-                      <option value="casual_dining">Casual Dining</option>
-                      <option value="fast_food">Fast Food</option>
-                      <option value="cafe">Café</option>
-                      <option value="buffet">Buffet</option>
-                      <option value="food_court">Food Court</option>
-                      <option value="cloud_kitchen">Cloud Kitchen</option>
-                    </select>
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Status</label>
-                    <select
-                      className="select"
-                      value={restaurantForm.restaurantStatus}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantStatus: e.target.value})}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="temporarily_closed">Temporarily Closed</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Opening Time</label>
-                    <input
-                      type="time"
-                      className="input"
-                      value={restaurantForm.openingTime}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, openingTime: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Closing Time</label>
-                    <input
-                      type="time"
-                      className="input"
-                      value={restaurantForm.closingTime}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, closingTime: e.target.value})}
+                      value={formData.primaryEmailId}
+                      onChange={(e) => setFormData({...formData, primaryEmailId: e.target.value})}
+                      required
                     />
                   </div>
                 </div>
@@ -496,6 +455,18 @@ const RestaurantManagement = () => {
                 </div>
               )}
 
+              {/* Image Upload (Optional) */}
+              <div className="form-section">
+                <h3>Restaurant Photo (Optional)</h3>
+                <ImageUpload
+                  currentImage={formData.imageUrl}
+                  onImageChange={handleImageUpload}
+                  uploadType="restaurant"
+                  label="Upload Restaurant Photo"
+                />
+              </div>
+
+              {/* Basic Information */}
               <div className="form-section">
                 <h3>Basic Information</h3>
 
@@ -504,29 +475,30 @@ const RestaurantManagement = () => {
                   <input
                     type="text"
                     className="input"
-                    value={restaurantForm.restaurantName}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantName: e.target.value})}
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
                     required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Description</label>
+                  <label className="input-label">Address *</label>
                   <textarea
                     className="textarea"
-                    value={restaurantForm.restaurantDescription}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantDescription: e.target.value})}
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
                     rows="3"
+                    required
                   />
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Address</label>
-                  <textarea
-                    className="textarea"
-                    value={restaurantForm.restaurantAddress}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantAddress: e.target.value})}
-                    rows="2"
+                  <label className="input-label">GST Number (Optional)</label>
+                  <input
+                    type="text"
+                    className="input"
+                    value={formData.gstNo}
+                    onChange={(e) => setFormData({...formData, gstNo: e.target.value})}
                   />
                 </div>
 
@@ -536,87 +508,20 @@ const RestaurantManagement = () => {
                     <input
                       type="tel"
                       className="input"
-                      value={restaurantForm.restaurantPhone}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantPhone: e.target.value})}
+                      value={formData.primaryContactNumber}
+                      onChange={(e) => setFormData({...formData, primaryContactNumber: e.target.value})}
                       required
                     />
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">Email</label>
+                    <label className="input-label">Email *</label>
                     <input
                       type="email"
                       className="input"
-                      value={restaurantForm.restaurantEmail}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantEmail: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Image URL</label>
-                  <input
-                    type="url"
-                    className="input"
-                    value={restaurantForm.restaurantImage}
-                    onChange={(e) => setRestaurantForm({...restaurantForm, restaurantImage: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h3>Operating Details</h3>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Restaurant Type</label>
-                    <select
-                      className="select"
-                      value={restaurantForm.restaurantType}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantType: e.target.value})}
-                    >
-                      <option value="fine_dining">Fine Dining</option>
-                      <option value="casual_dining">Casual Dining</option>
-                      <option value="fast_food">Fast Food</option>
-                      <option value="cafe">Café</option>
-                      <option value="buffet">Buffet</option>
-                      <option value="food_court">Food Court</option>
-                      <option value="cloud_kitchen">Cloud Kitchen</option>
-                    </select>
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Status</label>
-                    <select
-                      className="select"
-                      value={restaurantForm.restaurantStatus}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, restaurantStatus: e.target.value})}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="temporarily_closed">Temporarily Closed</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Opening Time</label>
-                    <input
-                      type="time"
-                      className="input"
-                      value={restaurantForm.openingTime}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, openingTime: e.target.value})}
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Closing Time</label>
-                    <input
-                      type="time"
-                      className="input"
-                      value={restaurantForm.closingTime}
-                      onChange={(e) => setRestaurantForm({...restaurantForm, closingTime: e.target.value})}
+                      value={formData.primaryEmailId}
+                      onChange={(e) => setFormData({...formData, primaryEmailId: e.target.value})}
+                      required
                     />
                   </div>
                 </div>
