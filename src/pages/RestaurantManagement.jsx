@@ -1,29 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { restaurantAPI } from '../services/api';
-import ImageUpload from '../components/ImageUpload';
 import './RestaurantManagement.css';
 
 const RestaurantManagement = () => {
-  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-  
-  // Form state - using camelCase for internal state
-  const [formData, setFormData] = useState({
+  const [searchTerm, setSearchTerm] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
+  // Form uses camelCase to match backend RestaurantDto
+  const [restaurantForm, setRestaurantForm] = useState({
     name: '',
     address: '',
-    gstNo: '',
-    primaryContactNumber: '',
-    primaryEmailId: '',
-    imageUrl: ''
+    contactNumber: '',
+    email: '',
+    description: '',
+    imageUrl: '',
+    status: 'active',
+    createdBy: 'admin'
   });
-  
-  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     fetchRestaurants();
@@ -33,405 +37,507 @@ const RestaurantManagement = () => {
     try {
       setLoading(true);
       const response = await restaurantAPI.getAll();
-      console.log('Fetched restaurants:', response.data);
-      setRestaurants(response.data);
-    } catch (error) {
-      console.error('Error fetching restaurants:', error);
+      setRestaurants(response.data || []);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch restaurants');
+      console.error('Error fetching restaurants:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      address: '',
-      gstNo: '',
-      primaryContactNumber: '',
-      primaryEmailId: '',
-      imageUrl: ''
-    });
-    setFormError('');
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setRestaurantForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  const validateForm = () => {
-    if (!formData.name.trim()) {
-      setFormError('Restaurant name is required');
-      return false;
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+      return;
     }
-    if (!formData.address.trim()) {
-      setFormError('Address is required');
-      return false;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB');
+      return;
     }
-    if (!formData.primaryContactNumber.trim()) {
-      setFormError('Contact number is required');
-      return false;
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/upload/restaurant-image`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success === 'true' || result.success === true) {
+        setRestaurantForm(prev => ({
+          ...prev,
+          imageUrl: result.fileUrl
+        }));
+      } else {
+        alert('Failed to upload image: ' + (result.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Error uploading image:', err);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploading(false);
     }
-    if (!formData.primaryEmailId.trim()) {
-      setFormError('Email is required');
-      return false;
+  };
+
+  const handleRemoveImage = async () => {
+    if (!restaurantForm.imageUrl) return;
+
+    try {
+      await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(restaurantForm.imageUrl)}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      console.error('Error deleting image:', err);
     }
-    return true;
+
+    setRestaurantForm(prev => ({
+      ...prev,
+      imageUrl: ''
+    }));
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith('http')) return imageUrl;
+    return `${API_BASE_URL}${imageUrl}`;
   };
 
   const handleAddRestaurant = async (e) => {
     e.preventDefault();
-    setFormError('');
 
-    if (!validateForm()) {
+    if (!restaurantForm.name.trim()) {
+      alert('Please enter a restaurant name');
       return;
     }
 
-    setLoading(true);
-
     try {
-      // Create request with exact field names matching backend
-      const requestData = {
-        name: formData.name,
-        address: formData.address,
-        gst_no: formData.gstNo,  // Backend expects gst_no
-        primaryEmailId: formData.primaryEmailId,
-        primaryContactNumber: formData.primaryContactNumber
-      };
-
-      // Only add imageUrl if it exists
-      if (formData.imageUrl && formData.imageUrl.trim()) {
-        requestData.imageUrl = formData.imageUrl;
-      }
-
-      console.log('=== SENDING TO BACKEND ===');
-      console.log('Request Data:', JSON.stringify(requestData, null, 2));
-      
-      const response = await restaurantAPI.create(requestData);
-      
-      console.log('=== BACKEND RESPONSE ===');
-      console.log('Response:', response.data);
-
-      alert('Restaurant added successfully!');
+      await restaurantAPI.create(restaurantForm);
       setShowAddModal(false);
       resetForm();
       fetchRestaurants();
-    } catch (error) {
-      console.error('=== ERROR ===');
-      console.error('Error:', error);
-      console.error('Response:', error.response?.data);
-      setFormError(error.response?.data?.message || 'Failed to add restaurant. Check console for details.');
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error('Error creating restaurant:', err);
+      alert('Failed to create restaurant. Please try again.');
     }
   };
 
   const handleEditRestaurant = async (e) => {
     e.preventDefault();
-    setFormError('');
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!selectedRestaurant) return;
 
-    setLoading(true);
+    // Get ID from either rest_id (API response) or restId
+    const restaurantId = selectedRestaurant.rest_id || selectedRestaurant.restId;
 
     try {
-      // Create request with exact field names matching backend
-      const requestData = {
-        name: formData.name,
-        address: formData.address,
-        gst_no: formData.gstNo,  // Backend expects gst_no
-        primaryEmailId: formData.primaryEmailId,
-        primaryContactNumber: formData.primaryContactNumber
+      const updateData = { 
+        ...restaurantForm, 
+        restId: restaurantId,
+        updatedBy: 'admin' 
       };
-
-      // Only add imageUrl if it exists
-      if (formData.imageUrl && formData.imageUrl.trim()) {
-        requestData.imageUrl = formData.imageUrl;
-      }
-
-      console.log('=== UPDATING RESTAURANT ===');
-      console.log('Restaurant ID:', selectedRestaurant.rest_id || selectedRestaurant.restId);
-      console.log('Request Data:', JSON.stringify(requestData, null, 2));
-      
-      await restaurantAPI.patch(selectedRestaurant.rest_id || selectedRestaurant.restId, requestData);
-
-      alert('Restaurant updated successfully!');
+      await restaurantAPI.patch(restaurantId, updateData);
       setShowEditModal(false);
+      setSelectedRestaurant(null);
+      resetForm();
       fetchRestaurants();
-    } catch (error) {
-      console.error('=== ERROR ===');
-      console.error('Error:', error);
-      console.error('Response:', error.response?.data);
-      setFormError(error.response?.data?.message || 'Failed to update restaurant');
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error('Error updating restaurant:', err);
+      alert('Failed to update restaurant. Please try again.');
     }
   };
 
-  const handleDeleteRestaurant = async (restaurantId) => {
-    if (!window.confirm('Are you sure you want to delete this restaurant? This action cannot be undone.')) {
-      return;
-    }
-
-    setLoading(true);
+  const handleDeleteRestaurant = async (restId) => {
+    if (!window.confirm('Are you sure you want to delete this restaurant? This will also affect all associated users and menu items.')) return;
 
     try {
-      await restaurantAPI.delete(restaurantId);
-      alert('Restaurant deleted successfully!');
+      const restaurant = restaurants.find(r => (r.rest_id || r.restId) === restId);
+      const imageUrl = restaurant?.image_url || restaurant?.imageUrl;
+      if (imageUrl) {
+        try {
+          await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(imageUrl)}`, {
+            method: 'DELETE',
+          });
+        } catch (err) {
+          console.error('Error deleting image:', err);
+        }
+      }
+
+      await restaurantAPI.delete(restId);
       fetchRestaurants();
-    } catch (error) {
-      console.error('Error deleting restaurant:', error);
-      alert('Failed to delete restaurant');
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error('Error deleting restaurant:', err);
+      alert('Failed to delete restaurant. Please try again.');
     }
   };
 
   const openEditModal = (restaurant) => {
     setSelectedRestaurant(restaurant);
-    
-    // Map response fields to form state
-    setFormData({
+    setRestaurantForm({
       name: restaurant.name || '',
       address: restaurant.address || '',
-      gstNo: restaurant.gst_no || restaurant.gstNo || '',
-      primaryContactNumber: restaurant.primaryContactNumber || '',
-      primaryEmailId: restaurant.primaryEmailId || '',
-      imageUrl: restaurant.imageUrl || ''
+      contactNumber: restaurant.contact_number || restaurant.contactNumber || '',
+      email: restaurant.email || '',
+      description: restaurant.description || '',
+      imageUrl: restaurant.image_url || restaurant.imageUrl || '',
+      status: restaurant.status || 'active',
+      updatedBy: 'admin'
     });
-    
     setShowEditModal(true);
   };
 
-  const handleImageUpload = (imageUrl) => {
-    setFormData({ ...formData, imageUrl });
+  const resetForm = () => {
+    setRestaurantForm({
+      name: '',
+      address: '',
+      contactNumber: '',
+      email: '',
+      description: '',
+      imageUrl: '',
+      status: 'active',
+      createdBy: 'admin'
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
+
+  const closeModal = () => {
+    setShowAddModal(false);
+    setShowEditModal(false);
+    setSelectedRestaurant(null);
+    resetForm();
+  };
+
+  const handleBack = () => {
+    navigate(-1);
+  };
+
+  const filteredRestaurants = restaurants.filter(restaurant => {
+    return !searchTerm ||
+      restaurant.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      restaurant.address?.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  const activeRestaurants = restaurants.filter(r => r.status === 'active').length;
+  const inactiveRestaurants = restaurants.filter(r => r.status === 'inactive').length;
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading restaurants...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="restaurant-management">
-      {/* Header */}
-      <header className="admin-header">
-        <div className="container">
-          <div className="header-content">
-            <div className="logo-section">
-              <h1>🏪 Restaurant Management</h1>
-              <p>Manage restaurant locations and details</p>
-            </div>
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-              <Link to="/admin" className="btn btn-outline">
-                Back to Dashboard
-              </Link>
-              <button className="btn btn-secondary" onClick={logout}>
-                Logout
-              </button>
-            </div>
+      {/* Header Section */}
+      <div className="page-header">
+        <div className="header-left">
+          <button className="btn-back" onClick={handleBack}>
+            <span className="back-icon">←</span>
+            <span className="back-text">Back</span>
+          </button>
+          <div className="header-title">
+            <h1>Restaurant Management</h1>
+            <p className="header-subtitle">Manage your restaurant locations and details</p>
           </div>
         </div>
-      </header>
+        <button className="btn-primary btn-add" onClick={() => setShowAddModal(true)}>
+          <span className="btn-icon">+</span>
+          Add Restaurant
+        </button>
+      </div>
 
-      {/* Main Content */}
-      <main className="restaurant-main">
-        <div className="container">
-          {/* Header */}
-          <div className="restaurant-header fade-in">
-            <h2>Restaurants</h2>
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                resetForm();
-                setShowAddModal(true);
-              }}
-            >
-              + Add New Restaurant
-            </button>
+      {error && (
+        <div className="error-message">
+          <span className="error-icon">⚠️</span>
+          {error}
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      <div className="stats-container">
+        <div className="stat-card">
+          <div className="stat-icon">🏪</div>
+          <div className="stat-info">
+            <span className="stat-value">{restaurants.length}</span>
+            <span className="stat-label">Total Restaurants</span>
           </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">✅</div>
+          <div className="stat-info">
+            <span className="stat-value">{activeRestaurants}</span>
+            <span className="stat-label">Active</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">⏸️</div>
+          <div className="stat-info">
+            <span className="stat-value">{inactiveRestaurants}</span>
+            <span className="stat-label">Inactive</span>
+          </div>
+        </div>
+      </div>
 
-          {/* Restaurants Grid */}
-          {loading && restaurants.length === 0 ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Loading restaurants...</p>
-            </div>
-          ) : restaurants.length === 0 ? (
-            <div className="empty-state card">
-              <div className="empty-icon">🏪</div>
-              <h3>No Restaurants</h3>
-              <p>Click "Add New Restaurant" to create your first restaurant</p>
-            </div>
-          ) : (
-            <div className="restaurants-grid fade-in" style={{ animationDelay: '0.1s' }}>
-              {restaurants.map((restaurant, index) => (
-                <div
-                  key={restaurant.rest_id || restaurant.restId}
-                  className="restaurant-card card"
-                  style={{ animationDelay: `${0.1 + index * 0.05}s` }}
-                >
-                  <div className="restaurant-image">
-                    {restaurant.imageUrl ? (
-                      <img src={restaurant.imageUrl} alt={restaurant.name} />
-                    ) : (
-                      <div className="placeholder-image">
-                        <span>🏪</span>
-                      </div>
-                    )}
-                  </div>
+      {/* Search Section */}
+      <div className="filter-section">
+        <div className="search-box">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search restaurants by name or address..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+      </div>
 
-                  <div className="restaurant-content">
-                    <h3>{restaurant.name}</h3>
-                    
-                    <div className="restaurant-info">
-                      <div className="info-item">
-                        <span className="icon">📍</span>
-                        <span className="text">{restaurant.address || 'No address'}</span>
-                      </div>
-
-                      <div className="info-item">
-                        <span className="icon">📞</span>
-                        <span className="text">{restaurant.primaryContactNumber || 'No phone'}</span>
-                      </div>
-
-                      {restaurant.primaryEmailId && (
-                        <div className="info-item">
-                          <span className="icon">✉️</span>
-                          <span className="text">{restaurant.primaryEmailId}</span>
-                        </div>
-                      )}
-
-                      {(restaurant.gst_no || restaurant.gstNo) && (
-                        <div className="info-item">
-                          <span className="icon">🆔</span>
-                          <span className="text">GST: {restaurant.gst_no || restaurant.gstNo}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="restaurant-actions">
-                      <button
-                        className="btn btn-sm btn-outline"
-                        onClick={() => openEditModal(restaurant)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        style={{ background: 'var(--error)', color: 'white' }}
-                        onClick={() => handleDeleteRestaurant(restaurant.rest_id || restaurant.restId)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+      {/* Restaurants Grid */}
+      <div className="restaurants-grid">
+        {filteredRestaurants.length === 0 ? (
+          <div className="no-restaurants">
+            <div className="no-restaurants-icon">🏪</div>
+            <h3>No restaurants found</h3>
+            <p>Add your first restaurant to get started!</p>
+          </div>
+        ) : (
+          filteredRestaurants.map(restaurant => {
+            const id = restaurant.rest_id || restaurant.restId;
+            const imageUrl = restaurant.image_url || restaurant.imageUrl;
+            const contactNumber = restaurant.contact_number || restaurant.contactNumber;
+            
+            return (
+            <div key={id} className="restaurant-card">
+              <div className="card-image">
+                {imageUrl ? (
+                  <img
+                    src={getImageUrl(imageUrl)}
+                    alt={restaurant.name}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <div className="image-placeholder" style={{ display: imageUrl ? 'none' : 'flex' }}>
+                  <span>🏪</span>
                 </div>
-              ))}
+                <span className={`status-badge ${restaurant.status}`}>
+                  {restaurant.status}
+                </span>
+              </div>
+              <div className="card-content">
+                <h3 className="restaurant-name">{restaurant.name}</h3>
+                {restaurant.description && (
+                  <p className="restaurant-description">{restaurant.description}</p>
+                )}
+                <div className="restaurant-details">
+                  {restaurant.address && (
+                    <div className="detail-item">
+                      <span className="detail-icon">📍</span>
+                      <span>{restaurant.address}</span>
+                    </div>
+                  )}
+                  {contactNumber && (
+                    <div className="detail-item">
+                      <span className="detail-icon">📞</span>
+                      <span>{contactNumber}</span>
+                    </div>
+                  )}
+                  {restaurant.email && (
+                    <div className="detail-item">
+                      <span className="detail-icon">📧</span>
+                      <span>{restaurant.email}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="card-actions">
+                  <button
+                    className="btn-action btn-edit"
+                    onClick={() => openEditModal(restaurant)}
+                  >
+                    <span>✏️</span> Edit
+                  </button>
+                  <button
+                    className="btn-action btn-delete"
+                    onClick={() => handleDeleteRestaurant(id)}
+                  >
+                    <span>🗑️</span> Delete
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </main>
+          )})
+        )}
+      </div>
 
       {/* Add Restaurant Modal */}
       {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Add New Restaurant</h2>
-              <button className="close-btn" onClick={() => setShowAddModal(false)}>×</button>
+              <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
-
-            <form onSubmit={handleAddRestaurant} className="modal-body">
-              {formError && (
-                <div className="alert alert-error">
-                  {formError}
-                </div>
-              )}
-
-              {/* Image Upload (Optional) */}
-              <div className="form-section">
-                <h3>Restaurant Photo (Optional)</h3>
-                <ImageUpload
-                  currentImage={formData.imageUrl}
-                  onImageChange={handleImageUpload}
-                  uploadType="restaurant"
-                  label="Upload Restaurant Photo"
+            <form onSubmit={handleAddRestaurant}>
+              <div className="form-group">
+                <label htmlFor="name">
+                  <span className="label-icon">🏪</span>
+                  Restaurant Name *
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={restaurantForm.name}
+                  onChange={handleInputChange}
+                  placeholder="Enter restaurant name"
+                  required
                 />
               </div>
 
-              {/* Basic Information */}
-              <div className="form-section">
-                <h3>Basic Information</h3>
+              <div className="form-group">
+                <label htmlFor="description">
+                  <span className="label-icon">📝</span>
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  value={restaurantForm.description}
+                  onChange={handleInputChange}
+                  placeholder="Enter restaurant description"
+                  rows="3"
+                />
+              </div>
 
-                <div className="input-group">
-                  <label className="input-label">Restaurant Name *</label>
+              <div className="form-group">
+                <label htmlFor="address">
+                  <span className="label-icon">📍</span>
+                  Address
+                </label>
+                <input
+                  type="text"
+                  id="address"
+                  name="address"
+                  value={restaurantForm.address}
+                  onChange={handleInputChange}
+                  placeholder="Enter restaurant address"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="contactNumber">
+                    <span className="label-icon">📞</span>
+                    Contact Number
+                  </label>
                   <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g., The Golden Spoon"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    required
+                    type="tel"
+                    id="contactNumber"
+                    name="contactNumber"
+                    value={restaurantForm.contactNumber}
+                    onChange={handleInputChange}
+                    placeholder="e.g., +1-123-456-7890"
                   />
                 </div>
 
-                <div className="input-group">
-                  <label className="input-label">Address *</label>
-                  <textarea
-                    className="textarea"
-                    placeholder="Full restaurant address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    rows="3"
-                    required
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">GST Number (Optional)</label>
+                <div className="form-group">
+                  <label htmlFor="email">
+                    <span className="label-icon">📧</span>
+                    Email
+                  </label>
                   <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g., 22AAAAA0000A1Z5"
-                    value={formData.gstNo}
-                    onChange={(e) => setFormData({...formData, gstNo: e.target.value})}
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={restaurantForm.email}
+                    onChange={handleInputChange}
+                    placeholder="Enter email address"
                   />
-                </div>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Phone Number *</label>
-                    <input
-                      type="tel"
-                      className="input"
-                      placeholder="e.g., 9876543210"
-                      value={formData.primaryContactNumber}
-                      onChange={(e) => setFormData({...formData, primaryContactNumber: e.target.value})}
-                      required
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Email *</label>
-                    <input
-                      type="email"
-                      className="input"
-                      placeholder="restaurant@example.com"
-                      value={formData.primaryEmailId}
-                      onChange={(e) => setFormData({...formData, primaryEmailId: e.target.value})}
-                      required
-                    />
-                  </div>
                 </div>
               </div>
 
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setShowAddModal(false)}
+              <div className="form-group">
+                <label htmlFor="status">
+                  <span className="label-icon">📊</span>
+                  Status
+                </label>
+                <select
+                  id="status"
+                  name="status"
+                  value={restaurantForm.status}
+                  onChange={handleInputChange}
                 >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Image Upload */}
+              <div className="form-group">
+                <label>
+                  <span className="label-icon">🖼️</span>
+                  Restaurant Image
+                </label>
+                <div className="image-upload-container">
+                  {restaurantForm.imageUrl ? (
+                    <div className="image-preview">
+                      <img src={getImageUrl(restaurantForm.imageUrl)} alt="Preview" />
+                      <button type="button" className="btn-remove-image" onClick={handleRemoveImage}>
+                        Remove Image
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="image-upload-placeholder">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        onChange={handleImageChange}
+                        disabled={uploading}
+                      />
+                      {uploading && <span className="uploading-text">Uploading...</span>}
+                      <p className="upload-hint">Accepted formats: JPG, PNG, GIF, WebP (Max 10MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closeModal}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Adding Restaurant...' : 'Add Restaurant'}
+                <button type="submit" className="btn-primary" disabled={uploading}>
+                  <span className="btn-icon">+</span>
+                  Add Restaurant
                 </button>
               </div>
             </form>
@@ -441,106 +547,144 @@ const RestaurantManagement = () => {
 
       {/* Edit Restaurant Modal */}
       {showEditModal && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Edit Restaurant</h2>
-              <button className="close-btn" onClick={() => setShowEditModal(false)}>×</button>
+              <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
-
-            <form onSubmit={handleEditRestaurant} className="modal-body">
-              {formError && (
-                <div className="alert alert-error">
-                  {formError}
-                </div>
-              )}
-
-              {/* Image Upload (Optional) */}
-              <div className="form-section">
-                <h3>Restaurant Photo (Optional)</h3>
-                <ImageUpload
-                  currentImage={formData.imageUrl}
-                  onImageChange={handleImageUpload}
-                  uploadType="restaurant"
-                  label="Upload Restaurant Photo"
+            <form onSubmit={handleEditRestaurant}>
+              <div className="form-group">
+                <label htmlFor="edit_name">
+                  <span className="label-icon">🏪</span>
+                  Restaurant Name *
+                </label>
+                <input
+                  type="text"
+                  id="edit_name"
+                  name="name"
+                  value={restaurantForm.name}
+                  onChange={handleInputChange}
+                  placeholder="Enter restaurant name"
+                  required
                 />
               </div>
 
-              {/* Basic Information */}
-              <div className="form-section">
-                <h3>Basic Information</h3>
+              <div className="form-group">
+                <label htmlFor="edit_description">
+                  <span className="label-icon">📝</span>
+                  Description
+                </label>
+                <textarea
+                  id="edit_description"
+                  name="description"
+                  value={restaurantForm.description}
+                  onChange={handleInputChange}
+                  placeholder="Enter restaurant description"
+                  rows="3"
+                />
+              </div>
 
-                <div className="input-group">
-                  <label className="input-label">Restaurant Name *</label>
+              <div className="form-group">
+                <label htmlFor="edit_address">
+                  <span className="label-icon">📍</span>
+                  Address
+                </label>
+                <input
+                  type="text"
+                  id="edit_address"
+                  name="address"
+                  value={restaurantForm.address}
+                  onChange={handleInputChange}
+                  placeholder="Enter restaurant address"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="edit_contactNumber">
+                    <span className="label-icon">📞</span>
+                    Contact Number
+                  </label>
                   <input
-                    type="text"
-                    className="input"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    required
+                    type="tel"
+                    id="edit_contactNumber"
+                    name="contactNumber"
+                    value={restaurantForm.contactNumber}
+                    onChange={handleInputChange}
+                    placeholder="e.g., +1-123-456-7890"
                   />
                 </div>
 
-                <div className="input-group">
-                  <label className="input-label">Address *</label>
-                  <textarea
-                    className="textarea"
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    rows="3"
-                    required
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">GST Number (Optional)</label>
+                <div className="form-group">
+                  <label htmlFor="edit_email">
+                    <span className="label-icon">📧</span>
+                    Email
+                  </label>
                   <input
-                    type="text"
-                    className="input"
-                    value={formData.gstNo}
-                    onChange={(e) => setFormData({...formData, gstNo: e.target.value})}
+                    type="email"
+                    id="edit_email"
+                    name="email"
+                    value={restaurantForm.email}
+                    onChange={handleInputChange}
+                    placeholder="Enter email address"
                   />
-                </div>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Phone Number *</label>
-                    <input
-                      type="tel"
-                      className="input"
-                      value={formData.primaryContactNumber}
-                      onChange={(e) => setFormData({...formData, primaryContactNumber: e.target.value})}
-                      required
-                    />
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Email *</label>
-                    <input
-                      type="email"
-                      className="input"
-                      value={formData.primaryEmailId}
-                      onChange={(e) => setFormData({...formData, primaryEmailId: e.target.value})}
-                      required
-                    />
-                  </div>
                 </div>
               </div>
 
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setShowEditModal(false)}
+              <div className="form-group">
+                <label htmlFor="edit_status">
+                  <span className="label-icon">📊</span>
+                  Status
+                </label>
+                <select
+                  id="edit_status"
+                  name="status"
+                  value={restaurantForm.status}
+                  onChange={handleInputChange}
                 >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              {/* Image Upload */}
+              <div className="form-group">
+                <label>
+                  <span className="label-icon">🖼️</span>
+                  Restaurant Image
+                </label>
+                <div className="image-upload-container">
+                  {restaurantForm.imageUrl ? (
+                    <div className="image-preview">
+                      <img src={getImageUrl(restaurantForm.imageUrl)} alt="Preview" />
+                      <button type="button" className="btn-remove-image" onClick={handleRemoveImage}>
+                        Remove Image
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="image-upload-placeholder">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        onChange={handleImageChange}
+                        disabled={uploading}
+                      />
+                      {uploading && <span className="uploading-text">Uploading...</span>}
+                      <p className="upload-hint">Accepted formats: JPG, PNG, GIF, WebP (Max 10MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closeModal}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Updating...' : 'Update Restaurant'}
+                <button type="submit" className="btn-primary" disabled={uploading}>
+                  <span className="btn-icon">✓</span>
+                  Update Restaurant
                 </button>
               </div>
             </form>

@@ -167,6 +167,7 @@ const UserManagement = () => {
       if (!updateData.password) {
         delete updateData.password;
       }
+      updateData.user_id = selectedUser.user_id;
       updateData.updated_by = 'admin';
 
       await userAPI.patch(selectedUser.user_id, updateData);

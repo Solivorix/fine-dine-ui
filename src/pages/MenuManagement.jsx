@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { itemAPI, restaurantAPI } from '../services/api';
 import './MenuManagement.css';
 
 const MenuManagement = () => {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,9 +13,13 @@ const MenuManagement = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [filterRestaurant, setFilterRestaurant] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
-  
+
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+
+  // Form uses camelCase to match backend ItemDto
   const [itemForm, setItemForm] = useState({
     productId: '',
     productName: '',
@@ -21,11 +27,19 @@ const MenuManagement = () => {
     restaurantId: '',
     itemStatus: 'available',
     imageUrl: '',
+    itemCategory: 'main',
     createdBy: 'admin'
   });
 
-  // Base URL for API - adjust based on your environment
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+  const categories = [
+    { value: 'starter', label: 'Starter', icon: '🥗' },
+    { value: 'main', label: 'Main Course', icon: '🍽️' },
+    { value: 'dessert', label: 'Dessert', icon: '🍰' },
+    { value: 'beverage', label: 'Beverage', icon: '🥤' },
+    { value: 'appetizer', label: 'Appetizer', icon: '🍤' },
+    { value: 'soup', label: 'Soup', icon: '🍲' },
+    { value: 'salad', label: 'Salad', icon: '🥬' }
+  ];
 
   useEffect(() => {
     fetchItems();
@@ -56,8 +70,14 @@ const MenuManagement = () => {
   };
 
   const getRestaurantName = (restaurantId) => {
-    const restaurant = restaurants.find(r => r.restId === restaurantId || r.rest_id === restaurantId);
+    if (!restaurantId) return 'No Restaurant';
+    const restaurant = restaurants.find(r => (r.rest_id || r.restId) === restaurantId);
     return restaurant ? restaurant.name : 'Unknown Restaurant';
+  };
+
+  const getCategoryInfo = (category) => {
+    const cat = categories.find(c => c.value === category);
+    return cat || { value: category, label: category, icon: '🍴' };
   };
 
   const handleInputChange = (e) => {
@@ -68,19 +88,16 @@ const MenuManagement = () => {
     }));
   };
 
-  // Handle image file selection and upload
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       alert('Please select a valid image file (JPG, PNG, GIF, or WebP)');
       return;
     }
 
-    // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       alert('File size must be less than 10MB');
       return;
@@ -88,7 +105,6 @@ const MenuManagement = () => {
 
     try {
       setUploading(true);
-      
       const formData = new FormData();
       formData.append('file', file);
 
@@ -115,12 +131,10 @@ const MenuManagement = () => {
     }
   };
 
-  // Remove uploaded image
   const handleRemoveImage = async () => {
     if (!itemForm.imageUrl) return;
 
     try {
-      // Call delete API
       await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(itemForm.imageUrl)}`, {
         method: 'DELETE',
       });
@@ -128,19 +142,16 @@ const MenuManagement = () => {
       console.error('Error deleting image:', err);
     }
 
-    // Clear the image from form regardless of API result
     setItemForm(prev => ({
       ...prev,
       imageUrl: ''
     }));
 
-    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // Get full image URL for display
   const getImageUrl = (imageUrl) => {
     if (!imageUrl) return null;
     if (imageUrl.startsWith('http')) return imageUrl;
@@ -149,13 +160,12 @@ const MenuManagement = () => {
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    
-    // Validation
+
     if (!itemForm.restaurantId) {
       alert('Please select a restaurant');
       return;
     }
-    
+
     if (!itemForm.productName.trim()) {
       alert('Please enter a product name');
       return;
@@ -167,7 +177,6 @@ const MenuManagement = () => {
     }
 
     try {
-      // API expects an array for createItems
       await itemAPI.create([itemForm]);
       setShowAddModal(false);
       resetForm();
@@ -180,11 +189,19 @@ const MenuManagement = () => {
 
   const handleEditItem = async (e) => {
     e.preventDefault();
-    
+
     if (!selectedItem) return;
 
     try {
-      await itemAPI.update(selectedItem.itemId, itemForm);
+      // Get ID from either item_id (API response) or itemId
+      const itemId = selectedItem.item_id || selectedItem.itemId;
+      
+      const updateData = { 
+        ...itemForm, 
+        itemId: itemId,
+        updatedBy: 'admin' 
+      };
+      await itemAPI.patch(itemId, updateData);
       setShowEditModal(false);
       setSelectedItem(null);
       resetForm();
@@ -199,12 +216,11 @@ const MenuManagement = () => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
 
     try {
-      // Find item to get imageUrl for cleanup
-      const item = items.find(i => i.itemId === itemId);
-      if (item?.imageUrl) {
-        // Try to delete the image file
+      const item = items.find(i => (i.item_id || i.itemId) === itemId);
+      const imageUrl = item?.image_url || item?.imageUrl;
+      if (imageUrl) {
         try {
-          await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(item.imageUrl)}`, {
+          await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(imageUrl)}`, {
             method: 'DELETE',
           });
         } catch (err) {
@@ -223,12 +239,13 @@ const MenuManagement = () => {
   const openEditModal = (item) => {
     setSelectedItem(item);
     setItemForm({
-      productId: item.productId || '',
-      productName: item.productName || '',
-      productDescription: item.productDescription || '',
-      restaurantId: item.restaurantId || '',
-      itemStatus: item.itemStatus || 'available',
-      imageUrl: item.imageUrl || '',
+      productId: item.product_id || item.productId || '',
+      productName: item.product_name || item.productName || '',
+      productDescription: item.product_description || item.productDescription || '',
+      restaurantId: item.restaurant_id || item.restaurantId || '',
+      itemStatus: item.item_status || item.itemStatus || 'available',
+      imageUrl: item.image_url || item.imageUrl || '',
+      itemCategory: item.item_category || item.itemCategory || 'main',
       updatedBy: 'admin'
     });
     setShowEditModal(true);
@@ -242,6 +259,7 @@ const MenuManagement = () => {
       restaurantId: '',
       itemStatus: 'available',
       imageUrl: '',
+      itemCategory: 'main',
       createdBy: 'admin'
     });
     if (fileInputRef.current) {
@@ -256,25 +274,60 @@ const MenuManagement = () => {
     resetForm();
   };
 
-  // Filter items by restaurant
-  const filteredItems = filterRestaurant === 'all' 
-    ? items 
-    : items.filter(item => item.restaurantId === filterRestaurant);
+  const handleBack = () => {
+    navigate(-1);
+  };
+
+  // Filter items
+  const filteredItems = items.filter(item => {
+    const restaurantId = item.restaurant_id || item.restaurantId;
+    const productName = item.product_name || item.productName || '';
+    const productDescription = item.product_description || item.productDescription || '';
+    const matchesRestaurant = filterRestaurant === 'all' || restaurantId === filterRestaurant;
+    const matchesSearch = !searchTerm ||
+      productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      productDescription.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesRestaurant && matchesSearch;
+  });
+
+  const availableItems = items.filter(i => (i.item_status || i.itemStatus) === 'available').length;
+  const unavailableItems = items.filter(i => (i.item_status || i.itemStatus) === 'unavailable').length;
 
   if (loading) {
-    return <div className="loading">Loading menu items...</div>;
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading menu items...</p>
+      </div>
+    );
   }
 
   return (
     <div className="menu-management">
+      {/* Header Section */}
       <div className="page-header">
-        <h1>Menu Management</h1>
-        <button className="btn-primary" onClick={() => setShowAddModal(true)}>
-          + Add Menu Item
+        <div className="header-left">
+          <button className="btn-back" onClick={handleBack}>
+            <span className="back-icon">←</span>
+            <span className="back-text">Back</span>
+          </button>
+          <div className="header-title">
+            <h1>Menu Management</h1>
+            <p className="header-subtitle">Manage your restaurant menu items</p>
+          </div>
+        </div>
+        <button className="btn-primary btn-add" onClick={() => setShowAddModal(true)}>
+          <span className="btn-icon">+</span>
+          Add Menu Item
         </button>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && (
+        <div className="error-message">
+          <span className="error-icon">⚠️</span>
+          {error}
+        </div>
+      )}
 
       {restaurants.length === 0 && (
         <div className="alert-warning">
@@ -283,70 +336,140 @@ const MenuManagement = () => {
         </div>
       )}
 
-      {/* Restaurant Filter */}
+      {/* Stats Cards */}
+      <div className="stats-container">
+        <div className="stat-card">
+          <div className="stat-icon">🍽️</div>
+          <div className="stat-info">
+            <span className="stat-value">{items.length}</span>
+            <span className="stat-label">Total Items</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">✅</div>
+          <div className="stat-info">
+            <span className="stat-value">{availableItems}</span>
+            <span className="stat-label">Available</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">⏸️</div>
+          <div className="stat-info">
+            <span className="stat-value">{unavailableItems}</span>
+            <span className="stat-label">Unavailable</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">🏪</div>
+          <div className="stat-info">
+            <span className="stat-value">{restaurants.length}</span>
+            <span className="stat-label">Restaurants</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Section */}
       <div className="filter-section">
-        <label htmlFor="filterRestaurant">Filter by Restaurant:</label>
-        <select
-          id="filterRestaurant"
-          value={filterRestaurant}
-          onChange={(e) => setFilterRestaurant(e.target.value)}
-          className="restaurant-filter"
-        >
-          <option value="all">All Restaurants</option>
-          {restaurants.map(restaurant => (
-            <option key={restaurant.restId || restaurant.rest_id} value={restaurant.restId || restaurant.rest_id}>
-              {restaurant.name}
-            </option>
-          ))}
-        </select>
+        <div className="search-box">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search menu items..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        <div className="filter-dropdown">
+          <label htmlFor="filterRestaurant">Restaurant:</label>
+          <select
+            id="filterRestaurant"
+            value={filterRestaurant}
+            onChange={(e) => setFilterRestaurant(e.target.value)}
+            className="restaurant-filter"
+          >
+            <option value="all">All Restaurants</option>
+            {restaurants.map(restaurant => {
+              const id = restaurant.rest_id || restaurant.restId;
+              return (
+                <option key={id} value={id}>
+                  {restaurant.name}
+                </option>
+              );
+            })}
+          </select>
+        </div>
       </div>
 
       {/* Items Grid */}
       <div className="items-grid">
         {filteredItems.length === 0 ? (
-          <div className="no-items">No menu items found. Add your first item!</div>
+          <div className="no-items">
+            <div className="no-items-icon">🍽️</div>
+            <h3>No menu items found</h3>
+            <p>Add your first menu item to get started!</p>
+          </div>
         ) : (
-          filteredItems.map(item => (
-            <div key={item.itemId} className="item-card">
-              {item.imageUrl && (
-                <div className="item-image">
-                  <img 
-                    src={getImageUrl(item.imageUrl)} 
-                    alt={item.productName}
+          filteredItems.map(item => {
+            const id = item.item_id || item.itemId;
+            const imageUrl = item.image_url || item.imageUrl;
+            const productName = item.product_name || item.productName;
+            const productId = item.product_id || item.productId;
+            const productDescription = item.product_description || item.productDescription;
+            const itemCategory = item.item_category || item.itemCategory;
+            const itemStatus = item.item_status || item.itemStatus;
+            const restaurantId = item.restaurant_id || item.restaurantId;
+            
+            return (
+            <div key={id} className="item-card">
+              <div className="card-image">
+                {imageUrl ? (
+                  <img
+                    src={getImageUrl(imageUrl)}
+                    alt={productName}
                     onError={(e) => {
                       e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
                     }}
                   />
+                ) : null}
+                <div className="image-placeholder" style={{ display: imageUrl ? 'none' : 'flex' }}>
+                  <span>{getCategoryInfo(itemCategory).icon}</span>
                 </div>
-              )}
-              <div className="item-content">
-                <h3>{item.productName}</h3>
-                <p className="item-description">{item.productDescription || 'No description'}</p>
-                <div className="item-meta">
-                  <span className={`status-badge ${item.itemStatus}`}>
-                    {item.itemStatus}
-                  </span>
-                  <span className="item-restaurant">
-                    {getRestaurantName(item.restaurantId)}
-                  </span>
+                <span className={`status-badge ${itemStatus}`}>
+                  {itemStatus}
+                </span>
+                <span className="category-badge">
+                  {getCategoryInfo(itemCategory).icon} {getCategoryInfo(itemCategory).label}
+                </span>
+              </div>
+              <div className="card-content">
+                <h3 className="item-name">{productName}</h3>
+                <p className="item-id">ID: {productId}</p>
+                {productDescription && (
+                  <p className="item-description">{productDescription}</p>
+                )}
+                <div className="item-restaurant">
+                  <span className="restaurant-icon">🏪</span>
+                  {getRestaurantName(restaurantId)}
                 </div>
-                <div className="item-actions">
-                  <button 
-                    className="btn-edit" 
+                <div className="card-actions">
+                  <button
+                    className="btn-action btn-edit"
                     onClick={() => openEditModal(item)}
                   >
-                    Edit
+                    <span>✏️</span> Edit
                   </button>
-                  <button 
-                    className="btn-delete" 
-                    onClick={() => handleDeleteItem(item.itemId)}
+                  <button
+                    className="btn-action btn-delete"
+                    onClick={() => handleDeleteItem(id)}
                   >
-                    Delete
+                    <span>🗑️</span> Delete
                   </button>
                 </div>
               </div>
             </div>
-          ))
+          )})
         )}
       </div>
 
@@ -359,39 +482,90 @@ const MenuManagement = () => {
               <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
             <form onSubmit={handleAddItem}>
-              <div className="form-group">
-                <label htmlFor="restaurantId">Restaurant *</label>
-                <select
-                  id="restaurantId"
-                  name="restaurantId"
-                  value={itemForm.restaurantId}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">Select a restaurant</option>
-                  {restaurants.map(restaurant => (
-                    <option key={restaurant.restId || restaurant.rest_id} value={restaurant.restId || restaurant.rest_id}>
-                      {restaurant.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="restaurantId">
+                    <span className="label-icon">🏪</span>
+                    Restaurant *
+                  </label>
+                  <select
+                    id="restaurantId"
+                    name="restaurantId"
+                    value={itemForm.restaurantId}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="">Select a restaurant</option>
+                    {restaurants.map(restaurant => {
+                      const rId = restaurant.rest_id || restaurant.restId;
+                      return (
+                        <option key={rId} value={rId}>
+                          {restaurant.name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="itemCategory">
+                    <span className="label-icon">📂</span>
+                    Category
+                  </label>
+                  <select
+                    id="itemCategory"
+                    name="itemCategory"
+                    value={itemForm.itemCategory}
+                    onChange={handleInputChange}
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.icon} {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="productId">
+                    <span className="label-icon">🏷️</span>
+                    Product ID *
+                  </label>
+                  <input
+                    type="text"
+                    id="productId"
+                    name="productId"
+                    value={itemForm.productId}
+                    onChange={handleInputChange}
+                    placeholder="e.g., PROD001"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="itemStatus">
+                    <span className="label-icon">📊</span>
+                    Status
+                  </label>
+                  <select
+                    id="itemStatus"
+                    name="itemStatus"
+                    value={itemForm.itemStatus}
+                    onChange={handleInputChange}
+                  >
+                    <option value="available">Available</option>
+                    <option value="unavailable">Unavailable</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">
-                <label htmlFor="productId">Product ID *</label>
-                <input
-                  type="text"
-                  id="productId"
-                  name="productId"
-                  value={itemForm.productId}
-                  onChange={handleInputChange}
-                  placeholder="e.g., PROD001"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="productName">Product Name *</label>
+                <label htmlFor="productName">
+                  <span className="label-icon">🍽️</span>
+                  Product Name *
+                </label>
                 <input
                   type="text"
                   id="productName"
@@ -404,7 +578,10 @@ const MenuManagement = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="productDescription">Description</label>
+                <label htmlFor="productDescription">
+                  <span className="label-icon">📝</span>
+                  Description
+                </label>
                 <textarea
                   id="productDescription"
                   name="productDescription"
@@ -415,34 +592,17 @@ const MenuManagement = () => {
                 />
               </div>
 
+              {/* Image Upload */}
               <div className="form-group">
-                <label htmlFor="itemStatus">Status</label>
-                <select
-                  id="itemStatus"
-                  name="itemStatus"
-                  value={itemForm.itemStatus}
-                  onChange={handleInputChange}
-                >
-                  <option value="available">Available</option>
-                  <option value="unavailable">Unavailable</option>
-                </select>
-              </div>
-
-              {/* Image Upload Section */}
-              <div className="form-group">
-                <label>Item Image</label>
+                <label>
+                  <span className="label-icon">🖼️</span>
+                  Item Image
+                </label>
                 <div className="image-upload-container">
                   {itemForm.imageUrl ? (
                     <div className="image-preview">
-                      <img 
-                        src={getImageUrl(itemForm.imageUrl)} 
-                        alt="Preview" 
-                      />
-                      <button 
-                        type="button" 
-                        className="btn-remove-image"
-                        onClick={handleRemoveImage}
-                      >
+                      <img src={getImageUrl(itemForm.imageUrl)} alt="Preview" />
+                      <button type="button" className="btn-remove-image" onClick={handleRemoveImage}>
                         Remove Image
                       </button>
                     </div>
@@ -467,6 +627,7 @@ const MenuManagement = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={uploading}>
+                  <span className="btn-icon">+</span>
                   Add Item
                 </button>
               </div>
@@ -484,42 +645,93 @@ const MenuManagement = () => {
               <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
             <form onSubmit={handleEditItem}>
-              <div className="form-group">
-                <label htmlFor="editRestaurantId">Restaurant *</label>
-                <select
-                  id="editRestaurantId"
-                  name="restaurantId"
-                  value={itemForm.restaurantId}
-                  onChange={handleInputChange}
-                  required
-                >
-                  <option value="">Select a restaurant</option>
-                  {restaurants.map(restaurant => (
-                    <option key={restaurant.restId || restaurant.rest_id} value={restaurant.restId || restaurant.rest_id}>
-                      {restaurant.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="edit_restaurantId">
+                    <span className="label-icon">🏪</span>
+                    Restaurant *
+                  </label>
+                  <select
+                    id="edit_restaurantId"
+                    name="restaurantId"
+                    value={itemForm.restaurantId}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="">Select a restaurant</option>
+                    {restaurants.map(restaurant => {
+                      const rId = restaurant.rest_id || restaurant.restId;
+                      return (
+                        <option key={rId} value={rId}>
+                          {restaurant.name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit_itemCategory">
+                    <span className="label-icon">📂</span>
+                    Category
+                  </label>
+                  <select
+                    id="edit_itemCategory"
+                    name="itemCategory"
+                    value={itemForm.itemCategory}
+                    onChange={handleInputChange}
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.icon} {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="edit_productId">
+                    <span className="label-icon">🏷️</span>
+                    Product ID *
+                  </label>
+                  <input
+                    type="text"
+                    id="edit_productId"
+                    name="productId"
+                    value={itemForm.productId}
+                    onChange={handleInputChange}
+                    placeholder="e.g., PROD001"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit_itemStatus">
+                    <span className="label-icon">📊</span>
+                    Status
+                  </label>
+                  <select
+                    id="edit_itemStatus"
+                    name="itemStatus"
+                    value={itemForm.itemStatus}
+                    onChange={handleInputChange}
+                  >
+                    <option value="available">Available</option>
+                    <option value="unavailable">Unavailable</option>
+                  </select>
+                </div>
               </div>
 
               <div className="form-group">
-                <label htmlFor="editProductId">Product ID *</label>
+                <label htmlFor="edit_productName">
+                  <span className="label-icon">🍽️</span>
+                  Product Name *
+                </label>
                 <input
                   type="text"
-                  id="editProductId"
-                  name="productId"
-                  value={itemForm.productId}
-                  onChange={handleInputChange}
-                  placeholder="e.g., PROD001"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="editProductName">Product Name *</label>
-                <input
-                  type="text"
-                  id="editProductName"
+                  id="edit_productName"
                   name="productName"
                   value={itemForm.productName}
                   onChange={handleInputChange}
@@ -529,9 +741,12 @@ const MenuManagement = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="editProductDescription">Description</label>
+                <label htmlFor="edit_productDescription">
+                  <span className="label-icon">📝</span>
+                  Description
+                </label>
                 <textarea
-                  id="editProductDescription"
+                  id="edit_productDescription"
                   name="productDescription"
                   value={itemForm.productDescription}
                   onChange={handleInputChange}
@@ -540,34 +755,17 @@ const MenuManagement = () => {
                 />
               </div>
 
+              {/* Image Upload */}
               <div className="form-group">
-                <label htmlFor="editItemStatus">Status</label>
-                <select
-                  id="editItemStatus"
-                  name="itemStatus"
-                  value={itemForm.itemStatus}
-                  onChange={handleInputChange}
-                >
-                  <option value="available">Available</option>
-                  <option value="unavailable">Unavailable</option>
-                </select>
-              </div>
-
-              {/* Image Upload Section */}
-              <div className="form-group">
-                <label>Item Image</label>
+                <label>
+                  <span className="label-icon">🖼️</span>
+                  Item Image
+                </label>
                 <div className="image-upload-container">
                   {itemForm.imageUrl ? (
                     <div className="image-preview">
-                      <img 
-                        src={getImageUrl(itemForm.imageUrl)} 
-                        alt="Preview" 
-                      />
-                      <button 
-                        type="button" 
-                        className="btn-remove-image"
-                        onClick={handleRemoveImage}
-                      >
+                      <img src={getImageUrl(itemForm.imageUrl)} alt="Preview" />
+                      <button type="button" className="btn-remove-image" onClick={handleRemoveImage}>
                         Remove Image
                       </button>
                     </div>
@@ -592,6 +790,7 @@ const MenuManagement = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={uploading}>
+                  <span className="btn-icon">✓</span>
                   Update Item
                 </button>
               </div>
