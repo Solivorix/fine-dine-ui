@@ -1,288 +1,563 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { userAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { userAPI, restaurantAPI } from '../services/api';
 import './UserManagement.css';
 
 const UserManagement = () => {
-  const { user: currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
+  const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [editData, setEditData] = useState({});
-  const [deleteOtp, setDeleteOtp] = useState('');
-  const [deleteStep, setDeleteStep] = useState('request'); // 'request' or 'verify'
-  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [filterRestaurant, setFilterRestaurant] = useState('all');
+  const [showPassword, setShowPassword] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Form uses snake_case to match backend DTO JSON property names
+  const [userForm, setUserForm] = useState({
+    user_name: '',
+    email: '',
+    password: '',
+    contact_number: '',
+    role: 'staff',
+    restaurant_id: '',
+    created_by: 'admin'
+  });
+
+  const roles = [
+    { value: 'admin', label: 'Admin', icon: '👑' },
+    { value: 'manager', label: 'Manager', icon: '📊' },
+    { value: 'staff', label: 'Staff', icon: '👤' },
+    { value: 'waiter', label: 'Waiter', icon: '🍽️' },
+    { value: 'chef', label: 'Chef', icon: '👨‍🍳' },
+    { value: 'cashier', label: 'Cashier', icon: '💰' }
+  ];
 
   useEffect(() => {
     fetchUsers();
+    fetchRestaurants();
   }, []);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
       const response = await userAPI.getAll();
-      setUsers(response.data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+      setUsers(response.data || []);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch users');
+      console.error('Error fetching users:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditClick = (user) => {
+  const fetchRestaurants = async () => {
+    try {
+      const response = await restaurantAPI.getAll();
+      setRestaurants(response.data || []);
+    } catch (err) {
+      console.error('Error fetching restaurants:', err);
+    }
+  };
+
+  const getRestaurantName = (restaurantId) => {
+    if (!restaurantId) return 'No Restaurant';
+    const restaurant = restaurants.find(r => r.rest_id === restaurantId || r.restId === restaurantId);
+    return restaurant ? restaurant.name : 'Unknown Restaurant';
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setUserForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    const re = /^\+?[0-9\-\s]{7,15}$/;
+    return re.test(phone);
+  };
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+
+    if (!userForm.restaurant_id) {
+      alert('Please select a restaurant');
+      return;
+    }
+
+    if (!userForm.user_name.trim()) {
+      alert('Please enter a username');
+      return;
+    }
+
+    if (!userForm.email.trim()) {
+      alert('Please enter an email');
+      return;
+    }
+
+    if (!validateEmail(userForm.email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    if (!userForm.password || userForm.password.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+
+    if (userForm.contact_number && !validatePhone(userForm.contact_number)) {
+      alert('Please enter a valid contact number');
+      return;
+    }
+
+    try {
+      await userAPI.create(userForm);
+      setShowAddModal(false);
+      resetForm();
+      fetchUsers();
+    } catch (err) {
+      console.error('Error creating user:', err);
+      alert('Failed to create user. Please try again.');
+    }
+  };
+
+  const handleEditUser = async (e) => {
+    e.preventDefault();
+
+    if (!selectedUser) return;
+
+    if (!userForm.restaurant_id) {
+      alert('Please select a restaurant');
+      return;
+    }
+
+    if (!userForm.user_name.trim()) {
+      alert('Please enter a username');
+      return;
+    }
+
+    if (!userForm.email.trim()) {
+      alert('Please enter an email');
+      return;
+    }
+
+    if (!validateEmail(userForm.email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    if (userForm.contact_number && !validatePhone(userForm.contact_number)) {
+      alert('Please enter a valid contact number');
+      return;
+    }
+
+    try {
+      const updateData = { ...userForm };
+      if (!updateData.password) {
+        delete updateData.password;
+      }
+      updateData.updated_by = 'admin';
+
+      await userAPI.patch(selectedUser.user_id, updateData);
+      setShowEditModal(false);
+      setSelectedUser(null);
+      resetForm();
+      fetchUsers();
+    } catch (err) {
+      console.error('Error updating user:', err);
+      alert('Failed to update user. Please try again.');
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+
+    try {
+      await userAPI.delete(userId);
+      fetchUsers();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      alert('Failed to delete user. Please try again.');
+    }
+  };
+
+  const openEditModal = (user) => {
     setSelectedUser(user);
-    setEditData({
-      user_name: user.user_name || user.userName,
-      email: user.email,
-      contact_number: user.contact_number || user.contactNumber,
-      role: user.role
+    setUserForm({
+      user_name: user.user_name || '',
+      email: user.email || '',
+      password: '',
+      contact_number: user.contact_number || '',
+      role: user.role || 'staff',
+      restaurant_id: user.restaurant_id || '',
+      updated_by: 'admin'
     });
     setShowEditModal(true);
   };
 
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      await userAPI.patch(selectedUser.user_id || selectedUser.userId, editData);
-      alert('User updated successfully!');
-      setShowEditModal(false);
-      fetchUsers();
-    } catch (error) {
-      console.error('Error updating user:', error);
-      alert('Failed to update user');
-    } finally {
-      setLoading(false);
-    }
+  const resetForm = () => {
+    setUserForm({
+      user_name: '',
+      email: '',
+      password: '',
+      contact_number: '',
+      role: 'staff',
+      restaurant_id: '',
+      created_by: 'admin'
+    });
+    setShowPassword(false);
   };
 
-  const handleDeleteClick = (user) => {
-    setSelectedUser(user);
-    setDeleteStep('request');
-    setDeleteOtp('');
-    setShowDeleteModal(true);
+  const closeModal = () => {
+    setShowAddModal(false);
+    setShowEditModal(false);
+    setSelectedUser(null);
+    resetForm();
   };
 
-  const generateOtp = () => {
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(otp);
-    return otp;
+  const handleBack = () => {
+    navigate(-1);
   };
 
-  const handleSendOtp = async () => {
-    const otp = generateOtp();
-    
-    // In a real application, send OTP via SMS/Email
-    // For now, show it in console and alert
-    console.log('OTP for deletion:', otp);
-    alert(`OTP sent to ${selectedUser.contact_number || selectedUser.contactNumber}: ${otp}\n\n(In production, this would be sent via SMS)`);
-    
-    setDeleteStep('verify');
+  // Filter users by restaurant and search term
+  const filteredUsers = users.filter(user => {
+    const matchesRestaurant = filterRestaurant === 'all' || user.restaurant_id === filterRestaurant;
+    const matchesSearch = !searchTerm || 
+      user.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesRestaurant && matchesSearch;
+  });
+
+  const getRoleBadgeClass = (role) => {
+    const roleClasses = {
+      admin: 'role-admin',
+      manager: 'role-manager',
+      staff: 'role-staff',
+      waiter: 'role-waiter',
+      chef: 'role-chef',
+      cashier: 'role-cashier'
+    };
+    return roleClasses[role] || 'role-default';
   };
 
-  const handleDeleteConfirm = async () => {
-    if (deleteOtp !== generatedOtp) {
-      alert('Invalid OTP. Please try again.');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      await userAPI.delete(selectedUser.user_id || selectedUser.userId);
-      alert('User deleted successfully!');
-      setShowDeleteModal(false);
-      setGeneratedOtp('');
-      setDeleteOtp('');
-      fetchUsers();
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Failed to delete user');
-    } finally {
-      setLoading(false);
-    }
+  const getRoleIcon = (role) => {
+    const roleData = roles.find(r => r.value === role);
+    return roleData ? roleData.icon : '👤';
   };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading users...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="user-management">
-      {/* Header */}
-      <header className="admin-header">
-        <div className="container">
-          <div className="header-content">
-            <div className="logo-section">
-              <h1>👥 User Management</h1>
-              <p>Manage staff and user accounts</p>
-            </div>
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-              <Link to="/admin" className="btn btn-outline">
-                Back to Dashboard
-              </Link>
-              <button className="btn btn-secondary" onClick={logout}>
-                Logout
-              </button>
-            </div>
+      {/* Header Section */}
+      <div className="page-header">
+        <div className="header-left">
+          <button className="btn-back" onClick={handleBack}>
+            <span className="back-icon">←</span>
+            <span className="back-text">Back</span>
+          </button>
+          <div className="header-title">
+            <h1>User Management</h1>
+            <p className="header-subtitle">Manage your restaurant staff and users</p>
           </div>
         </div>
-      </header>
+        <button className="btn-primary btn-add" onClick={() => setShowAddModal(true)}>
+          <span className="btn-icon">+</span>
+          Add User
+        </button>
+      </div>
 
-      {/* Main Content */}
-      <main className="user-main">
-        <div className="container">
-          {/* Current User Info */}
-          <div className="current-user-card card fade-in">
-            <h3>👤 Your Profile</h3>
-            <div className="user-info">
-              <div className="info-row">
-                <span className="label">Name:</span>
-                <span className="value">{currentUser?.loginId}</span>
-              </div>
-              <div className="info-row">
-                <span className="label">Role:</span>
-                <span className="badge badge-primary">{currentUser?.role}</span>
-              </div>
-            </div>
-          </div>
+      {error && (
+        <div className="error-message">
+          <span className="error-icon">⚠️</span>
+          {error}
+        </div>
+      )}
 
-          {/* Users List */}
-          <div className="users-section fade-in" style={{ animationDelay: '0.1s' }}>
-            <div className="section-header">
-              <h2>All Users</h2>
-              <Link to="/login" className="btn btn-primary">
-                Register New User
-              </Link>
-            </div>
+      {restaurants.length === 0 && (
+        <div className="alert-warning">
+          <span className="alert-icon">⚠️</span>
+          <span>No restaurants found. Please <a href="/restaurants">add a restaurant</a> first before creating users.</span>
+        </div>
+      )}
 
-            {loading ? (
-              <div className="loading-state">
-                <div className="spinner"></div>
-                <p>Loading users...</p>
-              </div>
-            ) : users.length === 0 ? (
-              <div className="empty-state card">
-                <p>No users found</p>
-              </div>
-            ) : (
-              <div className="users-table-container">
-                <table className="users-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Mobile</th>
-                      <th>Role</th>
-                      <th>Created</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <tr key={user.user_id || user.userId}>
-                        <td>{user.user_name || user.userName}</td>
-                        <td>{user.email}</td>
-                        <td>{user.contact_number || user.contactNumber || 'N/A'}</td>
-                        <td>
-                          <span className={`badge badge-${user.role === 'ADMIN' ? 'primary' : user.role === 'MANAGER' ? 'warning' : 'success'}`}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td>{new Date(user.created_at || user.createdAt).toLocaleDateString()}</td>
-                        <td>
-                          <div className="action-buttons">
-                            <button
-                              className="btn btn-sm btn-outline"
-                              onClick={() => handleEditClick(user)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="btn btn-sm"
-                              style={{ background: 'var(--error)', color: 'white' }}
-                              onClick={() => handleDeleteClick(user)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+      {/* Stats Cards */}
+      <div className="stats-container">
+        <div className="stat-card">
+          <div className="stat-icon">👥</div>
+          <div className="stat-info">
+            <span className="stat-value">{users.length}</span>
+            <span className="stat-label">Total Users</span>
           </div>
         </div>
-      </main>
+        <div className="stat-card">
+          <div className="stat-icon">🏪</div>
+          <div className="stat-info">
+            <span className="stat-value">{restaurants.length}</span>
+            <span className="stat-label">Restaurants</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon">👑</div>
+          <div className="stat-info">
+            <span className="stat-value">{users.filter(u => u.role === 'admin').length}</span>
+            <span className="stat-label">Admins</span>
+          </div>
+        </div>
+      </div>
 
-      {/* Edit Modal */}
-      {showEditModal && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+      {/* Filter Section */}
+      <div className="filter-section">
+        <div className="search-box">
+          <span className="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search users by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        <div className="filter-dropdown">
+          <label htmlFor="filterRestaurant">Restaurant:</label>
+          <select
+            id="filterRestaurant"
+            value={filterRestaurant}
+            onChange={(e) => setFilterRestaurant(e.target.value)}
+            className="restaurant-filter"
+          >
+            <option value="all">All Restaurants</option>
+            {restaurants.map(restaurant => (
+              <option key={restaurant.rest_id} value={restaurant.rest_id}>
+                {restaurant.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Users Table */}
+      <div className="users-table-container">
+        {filteredUsers.length === 0 ? (
+          <div className="no-users">
+            <div className="no-users-icon">👤</div>
+            <h3>No users found</h3>
+            <p>Add your first user to get started!</p>
+          </div>
+        ) : (
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Contact</th>
+                <th>Role</th>
+                <th>Restaurant</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map(user => (
+                <tr key={user.user_id}>
+                  <td>
+                    <div className="user-info">
+                      <div className="user-avatar">
+                        {user.user_name?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                      <div className="user-details">
+                        <span className="user-name">{user.user_name}</span>
+                        <span className="user-email">{user.email}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="contact-number">{user.contact_number || '—'}</span>
+                  </td>
+                  <td>
+                    <span className={`role-badge ${getRoleBadgeClass(user.role)}`}>
+                      <span className="role-icon">{getRoleIcon(user.role)}</span>
+                      {user.role}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="restaurant-badge">
+                      {getRestaurantName(user.restaurant_id)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="actions-cell">
+                      <button
+                        className="btn-action btn-edit"
+                        onClick={() => openEditModal(user)}
+                        title="Edit user"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="btn-action btn-delete"
+                        onClick={() => handleDeleteUser(user.user_id)}
+                        title="Delete user"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Add User Modal */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Edit User</h2>
+              <h2>Add New User</h2>
+              <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
-            <form onSubmit={handleEditSubmit} className="modal-body">
-              <div className="input-group">
-                <label className="input-label">Full Name</label>
+            <form onSubmit={handleAddUser}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="restaurant_id">
+                    <span className="label-icon">🏪</span>
+                    Restaurant *
+                  </label>
+                  <select
+                    id="restaurant_id"
+                    name="restaurant_id"
+                    value={userForm.restaurant_id}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="">Select a restaurant</option>
+                    {restaurants.map(restaurant => (
+                      <option key={restaurant.rest_id} value={restaurant.rest_id}>
+                        {restaurant.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="role">
+                    <span className="label-icon">👤</span>
+                    Role *
+                  </label>
+                  <select
+                    id="role"
+                    name="role"
+                    value={userForm.role}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    {roles.map(role => (
+                      <option key={role.value} value={role.value}>
+                        {role.icon} {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="user_name">
+                  <span className="label-icon">✍️</span>
+                  Username *
+                </label>
                 <input
                   type="text"
-                  className="input"
-                  value={editData.user_name || ''}
-                  onChange={(e) => setEditData({...editData, user_name: e.target.value})}
+                  id="user_name"
+                  name="user_name"
+                  value={userForm.user_name}
+                  onChange={handleInputChange}
+                  placeholder="Enter username"
                   required
                 />
               </div>
 
-              <div className="input-group">
-                <label className="input-label">Email</label>
+              <div className="form-group">
+                <label htmlFor="email">
+                  <span className="label-icon">📧</span>
+                  Email *
+                </label>
                 <input
                   type="email"
-                  className="input"
-                  value={editData.email || ''}
-                  onChange={(e) => setEditData({...editData, email: e.target.value})}
+                  id="email"
+                  name="email"
+                  value={userForm.email}
+                  onChange={handleInputChange}
+                  placeholder="Enter email address"
                   required
                 />
               </div>
 
-              <div className="input-group">
-                <label className="input-label">Mobile Number</label>
+              <div className="form-group">
+                <label htmlFor="password">
+                  <span className="label-icon">🔒</span>
+                  Password *
+                </label>
+                <div className="password-input-container">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    name="password"
+                    value={userForm.password}
+                    onChange={handleInputChange}
+                    placeholder="Enter password (min 6 characters)"
+                    required
+                    minLength="6"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="contact_number">
+                  <span className="label-icon">📱</span>
+                  Contact Number
+                </label>
                 <input
                   type="tel"
-                  className="input"
-                  value={editData.contact_number || ''}
-                  onChange={(e) => setEditData({...editData, contact_number: e.target.value.replace(/\D/g, '').slice(0, 10)})}
-                  pattern="[0-9]{10}"
-                  maxLength="10"
+                  id="contact_number"
+                  name="contact_number"
+                  value={userForm.contact_number}
+                  onChange={handleInputChange}
+                  placeholder="e.g., +1-123-456-7890"
                 />
               </div>
 
-              <div className="input-group">
-                <label className="input-label">Role</label>
-                <select
-                  className="select"
-                  value={editData.role || 'STAFF'}
-                  onChange={(e) => setEditData({...editData, role: e.target.value})}
-                >
-                  <option value="STAFF">Staff</option>
-                  <option value="MANAGER">Manager</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setShowEditModal(false)}
-                >
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closeModal}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save Changes'}
+                <button type="submit" className="btn-primary">
+                  <span className="btn-icon">+</span>
+                  Add User
                 </button>
               </div>
             </form>
@@ -290,78 +565,141 @@ const UserManagement = () => {
         </div>
       )}
 
-      {/* Delete Modal with OTP Verification */}
-      {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+      {/* Edit User Modal */}
+      {showEditModal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Delete User</h2>
+              <h2>Edit User</h2>
+              <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
-            <div className="modal-body">
-              {deleteStep === 'request' ? (
-                <>
-                  <div className="alert alert-error" style={{ marginBottom: 'var(--spacing-lg)' }}>
-                    <strong>⚠️ Warning:</strong> This action cannot be undone!
-                  </div>
-                  <p style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--text-light)' }}>
-                    Are you sure you want to delete user <strong>{selectedUser?.user_name || selectedUser?.userName}</strong>?
-                  </p>
-                  <p style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--text-light)' }}>
-                    An OTP will be sent to their mobile number: <strong>{selectedUser?.contact_number || selectedUser?.contactNumber}</strong>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p style={{ marginBottom: 'var(--spacing-lg)', color: 'var(--text-light)' }}>
-                    OTP has been sent to <strong>{selectedUser?.contact_number || selectedUser?.contactNumber}</strong>
-                  </p>
-                  <div className="input-group">
-                    <label className="input-label">Enter OTP</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="Enter 6-digit OTP"
-                      value={deleteOtp}
-                      onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      maxLength="6"
-                      autoFocus
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setDeleteStep('request');
-                  setDeleteOtp('');
-                  setGeneratedOtp('');
-                }}
-              >
-                Cancel
-              </button>
-              {deleteStep === 'request' ? (
-                <button
-                  className="btn"
-                  style={{ background: 'var(--warning)', color: 'white' }}
-                  onClick={handleSendOtp}
-                >
-                  Send OTP
+            <form onSubmit={handleEditUser}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="edit_restaurant_id">
+                    <span className="label-icon">🏪</span>
+                    Restaurant *
+                  </label>
+                  <select
+                    id="edit_restaurant_id"
+                    name="restaurant_id"
+                    value={userForm.restaurant_id}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="">Select a restaurant</option>
+                    {restaurants.map(restaurant => (
+                      <option key={restaurant.rest_id} value={restaurant.rest_id}>
+                        {restaurant.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit_role">
+                    <span className="label-icon">👤</span>
+                    Role *
+                  </label>
+                  <select
+                    id="edit_role"
+                    name="role"
+                    value={userForm.role}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    {roles.map(role => (
+                      <option key={role.value} value={role.value}>
+                        {role.icon} {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="edit_user_name">
+                  <span className="label-icon">✍️</span>
+                  Username *
+                </label>
+                <input
+                  type="text"
+                  id="edit_user_name"
+                  name="user_name"
+                  value={userForm.user_name}
+                  onChange={handleInputChange}
+                  placeholder="Enter username"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="edit_email">
+                  <span className="label-icon">📧</span>
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  id="edit_email"
+                  name="email"
+                  value={userForm.email}
+                  onChange={handleInputChange}
+                  placeholder="Enter email address"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="edit_password">
+                  <span className="label-icon">🔒</span>
+                  New Password
+                  <span className="label-hint">(leave blank to keep current)</span>
+                </label>
+                <div className="password-input-container">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="edit_password"
+                    name="password"
+                    value={userForm.password}
+                    onChange={handleInputChange}
+                    placeholder="Enter new password (optional)"
+                    minLength="6"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? '🙈' : '👁️'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="edit_contact_number">
+                  <span className="label-icon">📱</span>
+                  Contact Number
+                </label>
+                <input
+                  type="tel"
+                  id="edit_contact_number"
+                  name="contact_number"
+                  value={userForm.contact_number}
+                  onChange={handleInputChange}
+                  placeholder="e.g., +1-123-456-7890"
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closeModal}>
+                  Cancel
                 </button>
-              ) : (
-                <button
-                  className="btn"
-                  style={{ background: 'var(--error)', color: 'white' }}
-                  onClick={handleDeleteConfirm}
-                  disabled={deleteOtp.length !== 6 || loading}
-                >
-                  {loading ? 'Deleting...' : 'Confirm Delete'}
+                <button type="submit" className="btn-primary">
+                  <span className="btn-icon">✓</span>
+                  Update User
                 </button>
-              )}
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

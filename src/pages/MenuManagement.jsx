@@ -1,630 +1,473 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { itemAPI, priceAPI, additionalPricingAPI } from '../services/api';
+import React, { useState, useEffect, useRef } from 'react';
+import { itemAPI, restaurantAPI } from '../services/api';
 import './MenuManagement.css';
 
 const MenuManagement = () => {
-  const { logout } = useAuth();
   const [items, setItems] = useState([]);
-  const [prices, setPrices] = useState([]);
-  const [additionalPricings, setAdditionalPricings] = useState([]);
+  const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [showEditItemModal, setShowEditItemModal] = useState(false);
+  const [error, setError] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
-
-  // Form states
+  const [filterRestaurant, setFilterRestaurant] = useState('all');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+  
   const [itemForm, setItemForm] = useState({
+    productId: '',
     productName: '',
     productDescription: '',
-    productImage: '',
+    restaurantId: '',
     itemStatus: 'available',
-    itemCategory: 'main'
+    imageUrl: '',
+    createdBy: 'admin'
   });
 
-  const [priceForm, setPriceForm] = useState([
-    { portion_size: 'regular', price: '', is_default: true }
-  ]);
-
-  const [additionalPricingForm, setAdditionalPricingForm] = useState([]);
-
-  const [formError, setFormError] = useState('');
+  // Base URL for API - adjust based on your environment
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
   useEffect(() => {
-    fetchData();
+    fetchItems();
+    fetchRestaurants();
   }, []);
 
-  const fetchData = async () => {
+  const fetchItems = async () => {
     try {
       setLoading(true);
-      const [itemsRes, pricesRes, additionalRes] = await Promise.all([
-        itemAPI.getAll(),
-        priceAPI.getAll(),
-        additionalPricingAPI.getAll()
-      ]);
-
-      setItems(itemsRes.data);
-      setPrices(pricesRes.data);
-      setAdditionalPricings(additionalRes.data);
-    } catch (error) {
-      console.error('Error fetching data:', error);
+      const response = await itemAPI.getAll();
+      setItems(response.data || []);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch menu items');
+      console.error('Error fetching items:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setItemForm({
-      productName: '',
-      productDescription: '',
-      productImage: '',
-      itemStatus: 'available',
-      itemCategory: 'main'
-    });
-    setPriceForm([
-      { portion_size: 'regular', price: '', is_default: true }
-    ]);
-    setAdditionalPricingForm([]);
-    setFormError('');
+  const fetchRestaurants = async () => {
+    try {
+      const response = await restaurantAPI.getAll();
+      setRestaurants(response.data || []);
+    } catch (err) {
+      console.error('Error fetching restaurants:', err);
+    }
+  };
+
+  const getRestaurantName = (restaurantId) => {
+    const restaurant = restaurants.find(r => r.restId === restaurantId || r.rest_id === restaurantId);
+    return restaurant ? restaurant.name : 'Unknown Restaurant';
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setItemForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle image file selection and upload
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/upload/item-image`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success === 'true' || result.success === true) {
+        setItemForm(prev => ({
+          ...prev,
+          imageUrl: result.fileUrl
+        }));
+      } else {
+        alert('Failed to upload image: ' + (result.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Error uploading image:', err);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Remove uploaded image
+  const handleRemoveImage = async () => {
+    if (!itemForm.imageUrl) return;
+
+    try {
+      // Call delete API
+      await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(itemForm.imageUrl)}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      console.error('Error deleting image:', err);
+    }
+
+    // Clear the image from form regardless of API result
+    setItemForm(prev => ({
+      ...prev,
+      imageUrl: ''
+    }));
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Get full image URL for display
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith('http')) return imageUrl;
+    return `${API_BASE_URL}${imageUrl}`;
   };
 
   const handleAddItem = async (e) => {
     e.preventDefault();
-    setFormError('');
-
+    
     // Validation
+    if (!itemForm.restaurantId) {
+      alert('Please select a restaurant');
+      return;
+    }
+    
     if (!itemForm.productName.trim()) {
-      setFormError('Product name is required');
+      alert('Please enter a product name');
       return;
     }
 
-    if (priceForm.some(p => !p.price || parseFloat(p.price) <= 0)) {
-      setFormError('All prices must be greater than 0');
+    if (!itemForm.productId.trim()) {
+      alert('Please enter a product ID');
       return;
     }
-
-    setLoading(true);
 
     try {
-      // Step 1: Create Item
-      const itemResponse = await itemAPI.create({
-        product_name: itemForm.productName,
-        product_description: itemForm.productDescription,
-        product_image: itemForm.productImage,
-        item_status: itemForm.itemStatus,
-        item_category: itemForm.itemCategory
-      });
-
-      const newItemId = itemResponse.data.itemId || itemResponse.data.item_id;
-
-      // Step 2: Create Prices
-      const pricePromises = priceForm.map(priceData =>
-        priceAPI.create({
-          item_id: newItemId,
-          portion_size: priceData.portion_size,
-          price: parseFloat(priceData.price),
-          is_default: priceData.is_default
-        })
-      );
-
-      await Promise.all(pricePromises);
-
-      // Step 3: Create Additional Pricings (if any)
-      if (additionalPricingForm.length > 0) {
-        const additionalPromises = additionalPricingForm.map(additional =>
-          additionalPricingAPI.create({
-            item_id: newItemId,
-            pricing_name: additional.pricing_name,
-            pricing_value: parseFloat(additional.pricing_value),
-            pricing_type: additional.pricing_type
-          })
-        );
-
-        await Promise.all(additionalPromises);
-      }
-
-      alert('Item added successfully!');
-      setShowAddItemModal(false);
+      // API expects an array for createItems
+      await itemAPI.create([itemForm]);
+      setShowAddModal(false);
       resetForm();
-      fetchData();
-    } catch (error) {
-      console.error('Error adding item:', error);
-      setFormError(error.response?.data?.message || 'Failed to add item');
-    } finally {
-      setLoading(false);
+      fetchItems();
+    } catch (err) {
+      console.error('Error creating item:', err);
+      alert('Failed to create item. Please try again.');
     }
   };
 
   const handleEditItem = async (e) => {
     e.preventDefault();
-    setFormError('');
-
-    setLoading(true);
+    
+    if (!selectedItem) return;
 
     try {
-      // Update item
-      await itemAPI.patch(selectedItem.itemId || selectedItem.item_id, {
-        product_name: itemForm.productName,
-        product_description: itemForm.productDescription,
-        product_image: itemForm.productImage,
-        item_status: itemForm.itemStatus,
-        item_category: itemForm.itemCategory
-      });
-
-      // Update prices
-      const itemId = selectedItem.itemId || selectedItem.item_id;
-      const existingPrices = prices.filter(p => p.item_id === itemId);
-
-      // Delete old prices and create new ones
-      await Promise.all(existingPrices.map(p => 
-        priceAPI.delete(p.price_id)
-      ));
-
-      await Promise.all(priceForm.map(priceData =>
-        priceAPI.create({
-          item_id: itemId,
-          portion_size: priceData.portion_size,
-          price: parseFloat(priceData.price),
-          is_default: priceData.is_default
-        })
-      ));
-
-      alert('Item updated successfully!');
-      setShowEditItemModal(false);
-      fetchData();
-    } catch (error) {
-      console.error('Error updating item:', error);
-      setFormError(error.response?.data?.message || 'Failed to update item');
-    } finally {
-      setLoading(false);
+      await itemAPI.update(selectedItem.itemId, itemForm);
+      setShowEditModal(false);
+      setSelectedItem(null);
+      resetForm();
+      fetchItems();
+    } catch (err) {
+      console.error('Error updating item:', err);
+      alert('Failed to update item. Please try again.');
     }
   };
 
   const handleDeleteItem = async (itemId) => {
-    if (!window.confirm('Are you sure you want to delete this item?')) {
-      return;
-    }
-
-    setLoading(true);
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
 
     try {
-      // Delete associated prices first
-      const itemPrices = prices.filter(p => p.item_id === itemId);
-      await Promise.all(itemPrices.map(p => priceAPI.delete(p.price_id)));
+      // Find item to get imageUrl for cleanup
+      const item = items.find(i => i.itemId === itemId);
+      if (item?.imageUrl) {
+        // Try to delete the image file
+        try {
+          await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(item.imageUrl)}`, {
+            method: 'DELETE',
+          });
+        } catch (err) {
+          console.error('Error deleting image:', err);
+        }
+      }
 
-      // Delete associated additional pricings
-      const itemAdditional = additionalPricings.filter(a => a.item_id === itemId);
-      await Promise.all(itemAdditional.map(a => 
-        additionalPricingAPI.delete(a.additional_pricing_id)
-      ));
-
-      // Delete item
       await itemAPI.delete(itemId);
-
-      alert('Item deleted successfully!');
-      fetchData();
-    } catch (error) {
-      console.error('Error deleting item:', error);
-      alert('Failed to delete item');
-    } finally {
-      setLoading(false);
+      fetchItems();
+    } catch (err) {
+      console.error('Error deleting item:', err);
+      alert('Failed to delete item. Please try again.');
     }
   };
 
   const openEditModal = (item) => {
     setSelectedItem(item);
     setItemForm({
-      productName: item.productName || item.product_name,
-      productDescription: item.productDescription || item.product_description,
-      productImage: item.productImage || item.product_image || '',
-      itemStatus: item.itemStatus || item.item_status,
-      itemCategory: item.itemCategory || item.item_category
+      productId: item.productId || '',
+      productName: item.productName || '',
+      productDescription: item.productDescription || '',
+      restaurantId: item.restaurantId || '',
+      itemStatus: item.itemStatus || 'available',
+      imageUrl: item.imageUrl || '',
+      updatedBy: 'admin'
     });
+    setShowEditModal(true);
+  };
 
-    // Load prices for this item
-    const itemId = item.itemId || item.item_id;
-    const itemPrices = prices.filter(p => p.item_id === itemId);
-    
-    if (itemPrices.length > 0) {
-      setPriceForm(itemPrices.map(p => ({
-        portion_size: p.portion_size,
-        price: p.price.toString(),
-        is_default: p.is_default
-      })));
+  const resetForm = () => {
+    setItemForm({
+      productId: '',
+      productName: '',
+      productDescription: '',
+      restaurantId: '',
+      itemStatus: 'available',
+      imageUrl: '',
+      createdBy: 'admin'
+    });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
-
-    setShowEditItemModal(true);
   };
 
-  const addPriceRow = () => {
-    setPriceForm([...priceForm, { 
-      portion_size: '', 
-      price: '', 
-      is_default: false 
-    }]);
+  const closeModal = () => {
+    setShowAddModal(false);
+    setShowEditModal(false);
+    setSelectedItem(null);
+    resetForm();
   };
 
-  const removePriceRow = (index) => {
-    setPriceForm(priceForm.filter((_, i) => i !== index));
-  };
+  // Filter items by restaurant
+  const filteredItems = filterRestaurant === 'all' 
+    ? items 
+    : items.filter(item => item.restaurantId === filterRestaurant);
 
-  const updatePriceRow = (index, field, value) => {
-    const newPriceForm = [...priceForm];
-    newPriceForm[index][field] = value;
-    setPriceForm(newPriceForm);
-  };
-
-  const addAdditionalPricingRow = () => {
-    setAdditionalPricingForm([...additionalPricingForm, {
-      pricing_name: '',
-      pricing_value: '',
-      pricing_type: 'fixed'
-    }]);
-  };
-
-  const removeAdditionalPricingRow = (index) => {
-    setAdditionalPricingForm(additionalPricingForm.filter((_, i) => i !== index));
-  };
-
-  const updateAdditionalPricingRow = (index, field, value) => {
-    const newForm = [...additionalPricingForm];
-    newForm[index][field] = value;
-    setAdditionalPricingForm(newForm);
-  };
-
-  const getItemPrices = (itemId) => {
-    return prices.filter(p => p.item_id === itemId);
-  };
+  if (loading) {
+    return <div className="loading">Loading menu items...</div>;
+  }
 
   return (
     <div className="menu-management">
-      {/* Header */}
-      <header className="admin-header">
-        <div className="container">
-          <div className="header-content">
-            <div className="logo-section">
-              <h1>📋 Menu Management</h1>
-              <p>Manage items, prices, and additional charges</p>
-            </div>
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
-              <Link to="/admin" className="btn btn-outline">
-                Back to Dashboard
-              </Link>
-              <button className="btn btn-secondary" onClick={logout}>
-                Logout
-              </button>
-            </div>
-          </div>
+      <div className="page-header">
+        <h1>Menu Management</h1>
+        <button className="btn-primary" onClick={() => setShowAddModal(true)}>
+          + Add Menu Item
+        </button>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
+
+      {restaurants.length === 0 && (
+        <div className="alert-warning">
+          <span className="alert-icon">⚠️</span>
+          <span>No restaurants found. Please <a href="/restaurants">add a restaurant</a> first before creating menu items.</span>
         </div>
-      </header>
+      )}
 
-      {/* Main Content */}
-      <main className="menu-main">
-        <div className="container">
-          {/* Add Item Button */}
-          <div className="menu-header fade-in">
-            <h2>Menu Items</h2>
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                resetForm();
-                setShowAddItemModal(true);
-              }}
-            >
-              + Add New Item
-            </button>
-          </div>
+      {/* Restaurant Filter */}
+      <div className="filter-section">
+        <label htmlFor="filterRestaurant">Filter by Restaurant:</label>
+        <select
+          id="filterRestaurant"
+          value={filterRestaurant}
+          onChange={(e) => setFilterRestaurant(e.target.value)}
+          className="restaurant-filter"
+        >
+          <option value="all">All Restaurants</option>
+          {restaurants.map(restaurant => (
+            <option key={restaurant.restId || restaurant.rest_id} value={restaurant.restId || restaurant.rest_id}>
+              {restaurant.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
-          {/* Items Grid */}
-          {loading && items.length === 0 ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Loading menu items...</p>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="empty-state card">
-              <div className="empty-icon">📋</div>
-              <h3>No Menu Items</h3>
-              <p>Click "Add New Item" to create your first menu item</p>
-            </div>
-          ) : (
-            <div className="items-grid fade-in" style={{ animationDelay: '0.1s' }}>
-              {items.map((item, index) => {
-                const itemPrices = getItemPrices(item.itemId || item.item_id);
-                
-                return (
-                  <div
-                    key={item.itemId || item.item_id}
-                    className="item-card card"
-                    style={{ animationDelay: `${0.1 + index * 0.05}s` }}
-                  >
-                    <div className="item-image">
-                      {item.productImage || item.product_image ? (
-                        <img src={item.productImage || item.product_image} alt={item.productName || item.product_name} />
-                      ) : (
-                        <div className="placeholder-image">
-                          <span>🍽️</span>
-                        </div>
-                      )}
-                      <span className={`status-badge ${item.itemStatus || item.item_status}`}>
-                        {item.itemStatus || item.item_status}
-                      </span>
-                    </div>
-
-                    <div className="item-content">
-                      <h3>{item.productName || item.product_name}</h3>
-                      <p className="item-description">
-                        {item.productDescription || item.product_description || 'No description'}
-                      </p>
-                      
-                      <div className="item-category">
-                        <span className="badge">{item.itemCategory || item.item_category}</span>
-                      </div>
-
-                      <div className="item-prices">
-                        {itemPrices.map((price) => (
-                          <div key={price.price_id} className="price-tag">
-                            <span className="portion">{price.portion_size}</span>
-                            <span className="price">₹{price.price}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="item-actions">
-                        <button
-                          className="btn btn-sm btn-outline"
-                          onClick={() => openEditModal(item)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn btn-sm"
-                          style={{ background: 'var(--error)', color: 'white' }}
-                          onClick={() => handleDeleteItem(item.itemId || item.item_id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Add Item Modal */}
-      {showAddItemModal && (
-        <div className="modal-overlay" onClick={() => setShowAddItemModal(false)}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Add New Menu Item</h2>
-              <button className="close-btn" onClick={() => setShowAddItemModal(false)}>×</button>
-            </div>
-
-            <form onSubmit={handleAddItem} className="modal-body">
-              {formError && (
-                <div className="alert alert-error">
-                  {formError}
+      {/* Items Grid */}
+      <div className="items-grid">
+        {filteredItems.length === 0 ? (
+          <div className="no-items">No menu items found. Add your first item!</div>
+        ) : (
+          filteredItems.map(item => (
+            <div key={item.itemId} className="item-card">
+              {item.imageUrl && (
+                <div className="item-image">
+                  <img 
+                    src={getImageUrl(item.imageUrl)} 
+                    alt={item.productName}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
                 </div>
               )}
-
-              {/* Item Details Section */}
-              <div className="form-section">
-                <h3>Item Details</h3>
-                
-                <div className="input-group">
-                  <label className="input-label">Product Name *</label>
-                  <input
-                    type="text"
-                    className="input"
-                    placeholder="e.g., Margherita Pizza"
-                    value={itemForm.productName}
-                    onChange={(e) => setItemForm({...itemForm, productName: e.target.value})}
-                    required
-                  />
+              <div className="item-content">
+                <h3>{item.productName}</h3>
+                <p className="item-description">{item.productDescription || 'No description'}</p>
+                <div className="item-meta">
+                  <span className={`status-badge ${item.itemStatus}`}>
+                    {item.itemStatus}
+                  </span>
+                  <span className="item-restaurant">
+                    {getRestaurantName(item.restaurantId)}
+                  </span>
                 </div>
-
-                <div className="input-group">
-                  <label className="input-label">Description</label>
-                  <textarea
-                    className="textarea"
-                    placeholder="Brief description of the item"
-                    value={itemForm.productDescription}
-                    onChange={(e) => setItemForm({...itemForm, productDescription: e.target.value})}
-                    rows="3"
-                  />
-                </div>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Category</label>
-                    <select
-                      className="select"
-                      value={itemForm.itemCategory}
-                      onChange={(e) => setItemForm({...itemForm, itemCategory: e.target.value})}
-                    >
-                      <option value="starter">Starter</option>
-                      <option value="main">Main Course</option>
-                      <option value="dessert">Dessert</option>
-                      <option value="beverage">Beverage</option>
-                      <option value="appetizer">Appetizer</option>
-                      <option value="soup">Soup</option>
-                      <option value="salad">Salad</option>
-                    </select>
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Status</label>
-                    <select
-                      className="select"
-                      value={itemForm.itemStatus}
-                      onChange={(e) => setItemForm({...itemForm, itemStatus: e.target.value})}
-                    >
-                      <option value="available">Available</option>
-                      <option value="unavailable">Unavailable</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Image URL (optional)</label>
-                  <input
-                    type="url"
-                    className="input"
-                    placeholder="https://example.com/image.jpg"
-                    value={itemForm.productImage}
-                    onChange={(e) => setItemForm({...itemForm, productImage: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              {/* Pricing Section */}
-              <div className="form-section">
-                <div className="section-header-inline">
-                  <h3>Pricing *</h3>
-                  <button type="button" className="btn btn-sm btn-outline" onClick={addPriceRow}>
-                    + Add Size/Portion
+                <div className="item-actions">
+                  <button 
+                    className="btn-edit" 
+                    onClick={() => openEditModal(item)}
+                  >
+                    Edit
+                  </button>
+                  <button 
+                    className="btn-delete" 
+                    onClick={() => handleDeleteItem(item.itemId)}
+                  >
+                    Delete
                   </button>
                 </div>
-
-                {priceForm.map((price, index) => (
-                  <div key={index} className="price-row">
-                    <div className="input-group">
-                      <label className="input-label">Portion Size</label>
-                      <select
-                        className="select"
-                        value={price.portion_size}
-                        onChange={(e) => updatePriceRow(index, 'portion_size', e.target.value)}
-                        required
-                      >
-                        <option value="">Select Size</option>
-                        <option value="small">Small</option>
-                        <option value="regular">Regular</option>
-                        <option value="medium">Medium</option>
-                        <option value="large">Large</option>
-                        <option value="full">Full</option>
-                        <option value="half">Half</option>
-                        <option value="quarter">Quarter</option>
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Price (₹)</label>
-                      <input
-                        type="number"
-                        className="input"
-                        placeholder="0.00"
-                        step="0.01"
-                        min="0"
-                        value={price.price}
-                        onChange={(e) => updatePriceRow(index, 'price', e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="input-group checkbox-group">
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={price.is_default}
-                          onChange={(e) => updatePriceRow(index, 'is_default', e.target.checked)}
-                        />
-                        Default
-                      </label>
-                    </div>
-
-                    {priceForm.length > 1 && (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost remove-btn"
-                        onClick={() => removePriceRow(index)}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
               </div>
+            </div>
+          ))
+        )}
+      </div>
 
-              {/* Additional Pricing Section */}
-              <div className="form-section">
-                <div className="section-header-inline">
-                  <h3>Additional Charges (Optional)</h3>
-                  <button type="button" className="btn btn-sm btn-outline" onClick={addAdditionalPricingRow}>
-                    + Add Charge
-                  </button>
-                </div>
-
-                <p className="section-hint">Add extra charges like packaging, delivery, service charges, etc.</p>
-
-                {additionalPricingForm.map((additional, index) => (
-                  <div key={index} className="price-row">
-                    <div className="input-group">
-                      <label className="input-label">Charge Name</label>
-                      <input
-                        type="text"
-                        className="input"
-                        placeholder="e.g., Packaging"
-                        value={additional.pricing_name}
-                        onChange={(e) => updateAdditionalPricingRow(index, 'pricing_name', e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Value</label>
-                      <input
-                        type="number"
-                        className="input"
-                        placeholder="0.00"
-                        step="0.01"
-                        min="0"
-                        value={additional.pricing_value}
-                        onChange={(e) => updateAdditionalPricingRow(index, 'pricing_value', e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Type</label>
-                      <select
-                        className="select"
-                        value={additional.pricing_type}
-                        onChange={(e) => updateAdditionalPricingRow(index, 'pricing_type', e.target.value)}
-                      >
-                        <option value="fixed">Fixed (₹)</option>
-                        <option value="percentage">Percentage (%)</option>
-                      </select>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost remove-btn"
-                      onClick={() => removeAdditionalPricingRow(index)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setShowAddItemModal(false)}
+      {/* Add Item Modal */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Add New Menu Item</h2>
+              <button className="modal-close" onClick={closeModal}>&times;</button>
+            </div>
+            <form onSubmit={handleAddItem}>
+              <div className="form-group">
+                <label htmlFor="restaurantId">Restaurant *</label>
+                <select
+                  id="restaurantId"
+                  name="restaurantId"
+                  value={itemForm.restaurantId}
+                  onChange={handleInputChange}
+                  required
                 >
+                  <option value="">Select a restaurant</option>
+                  {restaurants.map(restaurant => (
+                    <option key={restaurant.restId || restaurant.rest_id} value={restaurant.restId || restaurant.rest_id}>
+                      {restaurant.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="productId">Product ID *</label>
+                <input
+                  type="text"
+                  id="productId"
+                  name="productId"
+                  value={itemForm.productId}
+                  onChange={handleInputChange}
+                  placeholder="e.g., PROD001"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="productName">Product Name *</label>
+                <input
+                  type="text"
+                  id="productName"
+                  name="productName"
+                  value={itemForm.productName}
+                  onChange={handleInputChange}
+                  placeholder="Enter product name"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="productDescription">Description</label>
+                <textarea
+                  id="productDescription"
+                  name="productDescription"
+                  value={itemForm.productDescription}
+                  onChange={handleInputChange}
+                  placeholder="Enter product description"
+                  rows="3"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="itemStatus">Status</label>
+                <select
+                  id="itemStatus"
+                  name="itemStatus"
+                  value={itemForm.itemStatus}
+                  onChange={handleInputChange}
+                >
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+              </div>
+
+              {/* Image Upload Section */}
+              <div className="form-group">
+                <label>Item Image</label>
+                <div className="image-upload-container">
+                  {itemForm.imageUrl ? (
+                    <div className="image-preview">
+                      <img 
+                        src={getImageUrl(itemForm.imageUrl)} 
+                        alt="Preview" 
+                      />
+                      <button 
+                        type="button" 
+                        className="btn-remove-image"
+                        onClick={handleRemoveImage}
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="image-upload-placeholder">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        onChange={handleImageChange}
+                        disabled={uploading}
+                      />
+                      {uploading && <span className="uploading-text">Uploading...</span>}
+                      <p className="upload-hint">Accepted formats: JPG, PNG, GIF, WebP (Max 10MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closeModal}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Adding Item...' : 'Add Item'}
+                <button type="submit" className="btn-primary" disabled={uploading}>
+                  Add Item
                 </button>
               </div>
             </form>
@@ -633,169 +476,123 @@ const MenuManagement = () => {
       )}
 
       {/* Edit Item Modal */}
-      {showEditItemModal && (
-        <div className="modal-overlay" onClick={() => setShowEditItemModal(false)}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+      {showEditModal && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Edit Menu Item</h2>
-              <button className="close-btn" onClick={() => setShowEditItemModal(false)}>×</button>
+              <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
-
-            <form onSubmit={handleEditItem} className="modal-body">
-              {formError && (
-                <div className="alert alert-error">
-                  {formError}
-                </div>
-              )}
-
-              {/* Item Details Section */}
-              <div className="form-section">
-                <h3>Item Details</h3>
-                
-                <div className="input-group">
-                  <label className="input-label">Product Name *</label>
-                  <input
-                    type="text"
-                    className="input"
-                    value={itemForm.productName}
-                    onChange={(e) => setItemForm({...itemForm, productName: e.target.value})}
-                    required
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Description</label>
-                  <textarea
-                    className="textarea"
-                    value={itemForm.productDescription}
-                    onChange={(e) => setItemForm({...itemForm, productDescription: e.target.value})}
-                    rows="3"
-                  />
-                </div>
-
-                <div className="form-row">
-                  <div className="input-group">
-                    <label className="input-label">Category</label>
-                    <select
-                      className="select"
-                      value={itemForm.itemCategory}
-                      onChange={(e) => setItemForm({...itemForm, itemCategory: e.target.value})}
-                    >
-                      <option value="starter">Starter</option>
-                      <option value="main">Main Course</option>
-                      <option value="dessert">Dessert</option>
-                      <option value="beverage">Beverage</option>
-                      <option value="appetizer">Appetizer</option>
-                      <option value="soup">Soup</option>
-                      <option value="salad">Salad</option>
-                    </select>
-                  </div>
-
-                  <div className="input-group">
-                    <label className="input-label">Status</label>
-                    <select
-                      className="select"
-                      value={itemForm.itemStatus}
-                      onChange={(e) => setItemForm({...itemForm, itemStatus: e.target.value})}
-                    >
-                      <option value="available">Available</option>
-                      <option value="unavailable">Unavailable</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="input-group">
-                  <label className="input-label">Image URL</label>
-                  <input
-                    type="url"
-                    className="input"
-                    value={itemForm.productImage}
-                    onChange={(e) => setItemForm({...itemForm, productImage: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              {/* Pricing Section */}
-              <div className="form-section">
-                <div className="section-header-inline">
-                  <h3>Pricing *</h3>
-                  <button type="button" className="btn btn-sm btn-outline" onClick={addPriceRow}>
-                    + Add Size/Portion
-                  </button>
-                </div>
-
-                {priceForm.map((price, index) => (
-                  <div key={index} className="price-row">
-                    <div className="input-group">
-                      <label className="input-label">Portion Size</label>
-                      <select
-                        className="select"
-                        value={price.portion_size}
-                        onChange={(e) => updatePriceRow(index, 'portion_size', e.target.value)}
-                        required
-                      >
-                        <option value="">Select Size</option>
-                        <option value="small">Small</option>
-                        <option value="regular">Regular</option>
-                        <option value="medium">Medium</option>
-                        <option value="large">Large</option>
-                        <option value="full">Full</option>
-                        <option value="half">Half</option>
-                        <option value="quarter">Quarter</option>
-                      </select>
-                    </div>
-
-                    <div className="input-group">
-                      <label className="input-label">Price (₹)</label>
-                      <input
-                        type="number"
-                        className="input"
-                        step="0.01"
-                        min="0"
-                        value={price.price}
-                        onChange={(e) => updatePriceRow(index, 'price', e.target.value)}
-                        required
-                      />
-                    </div>
-
-                    <div className="input-group checkbox-group">
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={price.is_default}
-                          onChange={(e) => updatePriceRow(index, 'is_default', e.target.checked)}
-                        />
-                        Default
-                      </label>
-                    </div>
-
-                    {priceForm.length > 1 && (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost remove-btn"
-                        onClick={() => removePriceRow(index)}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setShowEditItemModal(false)}
+            <form onSubmit={handleEditItem}>
+              <div className="form-group">
+                <label htmlFor="editRestaurantId">Restaurant *</label>
+                <select
+                  id="editRestaurantId"
+                  name="restaurantId"
+                  value={itemForm.restaurantId}
+                  onChange={handleInputChange}
+                  required
                 >
+                  <option value="">Select a restaurant</option>
+                  {restaurants.map(restaurant => (
+                    <option key={restaurant.restId || restaurant.rest_id} value={restaurant.restId || restaurant.rest_id}>
+                      {restaurant.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="editProductId">Product ID *</label>
+                <input
+                  type="text"
+                  id="editProductId"
+                  name="productId"
+                  value={itemForm.productId}
+                  onChange={handleInputChange}
+                  placeholder="e.g., PROD001"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="editProductName">Product Name *</label>
+                <input
+                  type="text"
+                  id="editProductName"
+                  name="productName"
+                  value={itemForm.productName}
+                  onChange={handleInputChange}
+                  placeholder="Enter product name"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="editProductDescription">Description</label>
+                <textarea
+                  id="editProductDescription"
+                  name="productDescription"
+                  value={itemForm.productDescription}
+                  onChange={handleInputChange}
+                  placeholder="Enter product description"
+                  rows="3"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="editItemStatus">Status</label>
+                <select
+                  id="editItemStatus"
+                  name="itemStatus"
+                  value={itemForm.itemStatus}
+                  onChange={handleInputChange}
+                >
+                  <option value="available">Available</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+              </div>
+
+              {/* Image Upload Section */}
+              <div className="form-group">
+                <label>Item Image</label>
+                <div className="image-upload-container">
+                  {itemForm.imageUrl ? (
+                    <div className="image-preview">
+                      <img 
+                        src={getImageUrl(itemForm.imageUrl)} 
+                        alt="Preview" 
+                      />
+                      <button 
+                        type="button" 
+                        className="btn-remove-image"
+                        onClick={handleRemoveImage}
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="image-upload-placeholder">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                        onChange={handleImageChange}
+                        disabled={uploading}
+                      />
+                      {uploading && <span className="uploading-text">Uploading...</span>}
+                      <p className="upload-hint">Accepted formats: JPG, PNG, GIF, WebP (Max 10MB)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closeModal}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? 'Updating...' : 'Update Item'}
+                <button type="submit" className="btn-primary" disabled={uploading}>
+                  Update Item
                 </button>
               </div>
             </form>
