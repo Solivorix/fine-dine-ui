@@ -17,15 +17,14 @@ const RestaurantManagement = () => {
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
-  // Form uses camelCase to match backend RestaurantDto
+  // Form uses field names to match backend RestaurantDto
   const [restaurantForm, setRestaurantForm] = useState({
     name: '',
+    gstNo: '',
     address: '',
-    contactNumber: '',
-    email: '',
-    description: '',
+    primaryEmailId: '',
+    primaryContactNumber: '',
     imageUrl: '',
-    status: 'active',
     createdBy: 'admin'
   });
 
@@ -156,7 +155,7 @@ const RestaurantManagement = () => {
       const updateData = { 
         ...restaurantForm, 
         restId: restaurantId,
-        updatedBy: 'admin' 
+        modifiedBy: 'admin' 
       };
       await restaurantAPI.patch(restaurantId, updateData);
       setShowEditModal(false);
@@ -174,7 +173,7 @@ const RestaurantManagement = () => {
 
     try {
       const restaurant = restaurants.find(r => (r.rest_id || r.restId) === restId);
-      const imageUrl = restaurant?.image_url || restaurant?.imageUrl;
+      const imageUrl = restaurant?.imageUrl;
       if (imageUrl) {
         try {
           await fetch(`${API_BASE_URL}/api/upload/image?url=${encodeURIComponent(imageUrl)}`, {
@@ -197,13 +196,12 @@ const RestaurantManagement = () => {
     setSelectedRestaurant(restaurant);
     setRestaurantForm({
       name: restaurant.name || '',
+      gstNo: restaurant.gst_no || restaurant.gstNo || '',
       address: restaurant.address || '',
-      contactNumber: restaurant.contact_number || restaurant.contactNumber || '',
-      email: restaurant.email || '',
-      description: restaurant.description || '',
-      imageUrl: restaurant.image_url || restaurant.imageUrl || '',
-      status: restaurant.status || 'active',
-      updatedBy: 'admin'
+      primaryEmailId: restaurant.primaryEmailId || '',
+      primaryContactNumber: restaurant.primaryContactNumber || '',
+      imageUrl: restaurant.imageUrl || '',
+      modifiedBy: 'admin'
     });
     setShowEditModal(true);
   };
@@ -211,12 +209,11 @@ const RestaurantManagement = () => {
   const resetForm = () => {
     setRestaurantForm({
       name: '',
+      gstNo: '',
       address: '',
-      contactNumber: '',
-      email: '',
-      description: '',
+      primaryEmailId: '',
+      primaryContactNumber: '',
       imageUrl: '',
-      status: 'active',
       createdBy: 'admin'
     });
     if (fileInputRef.current) {
@@ -240,9 +237,6 @@ const RestaurantManagement = () => {
       restaurant.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       restaurant.address?.toLowerCase().includes(searchTerm.toLowerCase());
   });
-
-  const activeRestaurants = restaurants.filter(r => r.status === 'active').length;
-  const inactiveRestaurants = restaurants.filter(r => r.status === 'inactive').length;
 
   if (loading) {
     return (
@@ -289,20 +283,6 @@ const RestaurantManagement = () => {
             <span className="stat-label">Total Restaurants</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon">✅</div>
-          <div className="stat-info">
-            <span className="stat-value">{activeRestaurants}</span>
-            <span className="stat-label">Active</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">⏸️</div>
-          <div className="stat-info">
-            <span className="stat-value">{inactiveRestaurants}</span>
-            <span className="stat-label">Inactive</span>
-          </div>
-        </div>
       </div>
 
       {/* Search Section */}
@@ -330,8 +310,10 @@ const RestaurantManagement = () => {
         ) : (
           filteredRestaurants.map(restaurant => {
             const id = restaurant.rest_id || restaurant.restId;
-            const imageUrl = restaurant.image_url || restaurant.imageUrl;
-            const contactNumber = restaurant.contact_number || restaurant.contactNumber;
+            const imageUrl = restaurant.imageUrl;
+            const primaryContactNumber = restaurant.primaryContactNumber;
+            const primaryEmailId = restaurant.primaryEmailId;
+            const gstNo = restaurant.gst_no || restaurant.gstNo;
             
             return (
             <div key={id} className="restaurant-card">
@@ -349,14 +331,11 @@ const RestaurantManagement = () => {
                 <div className="image-placeholder" style={{ display: imageUrl ? 'none' : 'flex' }}>
                   <span>🏪</span>
                 </div>
-                <span className={`status-badge ${restaurant.status}`}>
-                  {restaurant.status}
-                </span>
               </div>
               <div className="card-content">
                 <h3 className="restaurant-name">{restaurant.name}</h3>
-                {restaurant.description && (
-                  <p className="restaurant-description">{restaurant.description}</p>
+                {gstNo && (
+                  <p className="restaurant-gst">GST: {gstNo}</p>
                 )}
                 <div className="restaurant-details">
                   {restaurant.address && (
@@ -365,16 +344,16 @@ const RestaurantManagement = () => {
                       <span>{restaurant.address}</span>
                     </div>
                   )}
-                  {contactNumber && (
+                  {primaryContactNumber && (
                     <div className="detail-item">
                       <span className="detail-icon">📞</span>
-                      <span>{contactNumber}</span>
+                      <span>{primaryContactNumber}</span>
                     </div>
                   )}
-                  {restaurant.email && (
+                  {primaryEmailId && (
                     <div className="detail-item">
                       <span className="detail-icon">📧</span>
-                      <span>{restaurant.email}</span>
+                      <span>{primaryEmailId}</span>
                     </div>
                   )}
                 </div>
@@ -424,17 +403,17 @@ const RestaurantManagement = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="description">
-                  <span className="label-icon">📝</span>
-                  Description
+                <label htmlFor="gstNo">
+                  <span className="label-icon">📋</span>
+                  GST Number
                 </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  value={restaurantForm.description}
+                <input
+                  type="text"
+                  id="gstNo"
+                  name="gstNo"
+                  value={restaurantForm.gstNo}
                   onChange={handleInputChange}
-                  placeholder="Enter restaurant description"
-                  rows="3"
+                  placeholder="Enter GST registration number"
                 />
               </div>
 
@@ -455,50 +434,34 @@ const RestaurantManagement = () => {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label htmlFor="contactNumber">
+                  <label htmlFor="primaryContactNumber">
                     <span className="label-icon">📞</span>
                     Contact Number
                   </label>
                   <input
                     type="tel"
-                    id="contactNumber"
-                    name="contactNumber"
-                    value={restaurantForm.contactNumber}
+                    id="primaryContactNumber"
+                    name="primaryContactNumber"
+                    value={restaurantForm.primaryContactNumber}
                     onChange={handleInputChange}
                     placeholder="e.g., +1-123-456-7890"
                   />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="email">
+                  <label htmlFor="primaryEmailId">
                     <span className="label-icon">📧</span>
                     Email
                   </label>
                   <input
                     type="email"
-                    id="email"
-                    name="email"
-                    value={restaurantForm.email}
+                    id="primaryEmailId"
+                    name="primaryEmailId"
+                    value={restaurantForm.primaryEmailId}
                     onChange={handleInputChange}
                     placeholder="Enter email address"
                   />
                 </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="status">
-                  <span className="label-icon">📊</span>
-                  Status
-                </label>
-                <select
-                  id="status"
-                  name="status"
-                  value={restaurantForm.status}
-                  onChange={handleInputChange}
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
               </div>
 
               {/* Image Upload */}
@@ -571,17 +534,17 @@ const RestaurantManagement = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="edit_description">
-                  <span className="label-icon">📝</span>
-                  Description
+                <label htmlFor="edit_gstNo">
+                  <span className="label-icon">📋</span>
+                  GST Number
                 </label>
-                <textarea
-                  id="edit_description"
-                  name="description"
-                  value={restaurantForm.description}
+                <input
+                  type="text"
+                  id="edit_gstNo"
+                  name="gstNo"
+                  value={restaurantForm.gstNo}
                   onChange={handleInputChange}
-                  placeholder="Enter restaurant description"
-                  rows="3"
+                  placeholder="Enter GST registration number"
                 />
               </div>
 
@@ -602,50 +565,34 @@ const RestaurantManagement = () => {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label htmlFor="edit_contactNumber">
+                  <label htmlFor="edit_primaryContactNumber">
                     <span className="label-icon">📞</span>
                     Contact Number
                   </label>
                   <input
                     type="tel"
-                    id="edit_contactNumber"
-                    name="contactNumber"
-                    value={restaurantForm.contactNumber}
+                    id="edit_primaryContactNumber"
+                    name="primaryContactNumber"
+                    value={restaurantForm.primaryContactNumber}
                     onChange={handleInputChange}
                     placeholder="e.g., +1-123-456-7890"
                   />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="edit_email">
+                  <label htmlFor="edit_primaryEmailId">
                     <span className="label-icon">📧</span>
                     Email
                   </label>
                   <input
                     type="email"
-                    id="edit_email"
-                    name="email"
-                    value={restaurantForm.email}
+                    id="edit_primaryEmailId"
+                    name="primaryEmailId"
+                    value={restaurantForm.primaryEmailId}
                     onChange={handleInputChange}
                     placeholder="Enter email address"
                   />
                 </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="edit_status">
-                  <span className="label-icon">📊</span>
-                  Status
-                </label>
-                <select
-                  id="edit_status"
-                  name="status"
-                  value={restaurantForm.status}
-                  onChange={handleInputChange}
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
               </div>
 
               {/* Image Upload */}
