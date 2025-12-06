@@ -7,7 +7,7 @@ const TableBooking = () => {
   const { restaurantId, tableNumber } = useParams();
   const navigate = useNavigate();
   
-  // Restaurant selection state (when no restaurantId in URL)
+  // Restaurant selection state
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [loadingRestaurants, setLoadingRestaurants] = useState(false);
@@ -24,10 +24,10 @@ const TableBooking = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [loading, setLoading] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
+  const [showCart, setShowCart] = useState(false);
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
-  // Fetch restaurants if no restaurantId provided
   useEffect(() => {
     if (!restaurantId) {
       fetchRestaurants();
@@ -36,7 +36,6 @@ const TableBooking = () => {
     }
   }, [restaurantId]);
 
-  // Fetch menu when restaurant is selected and customer enters details
   useEffect(() => {
     if (showMenu && (restaurantId || selectedRestaurant)) {
       fetchData();
@@ -61,7 +60,6 @@ const TableBooking = () => {
       setSelectedRestaurant(response.data);
     } catch (error) {
       console.error('Error fetching restaurant:', error);
-      // If restaurant not found, show restaurant selection
       fetchRestaurants();
     }
   };
@@ -76,14 +74,12 @@ const TableBooking = () => {
         priceAPI.getAll(),
       ]);
 
-      // Filter items by restaurant and availability
       const availableItems = itemsRes.data.filter((item) => {
         const itemRestId = item.restaurant_id || item.restaurantId;
         const itemStatus = item.item_status || item.itemStatus;
         return itemRestId === activeRestaurantId && itemStatus === 'available';
       });
 
-      // Filter prices by restaurant
       const restaurantPrices = pricesRes.data.filter((price) => {
         return price.restaurant_id === activeRestaurantId;
       });
@@ -99,7 +95,6 @@ const TableBooking = () => {
 
   const handleSelectRestaurant = (restaurant) => {
     const restId = restaurant.rest_id || restaurant.restId;
-    // Navigate to the full URL with restaurantId
     navigate(`/restaurant/${restId}/table/${tableNumber}`);
     setSelectedRestaurant(restaurant);
   };
@@ -166,6 +161,10 @@ const TableBooking = () => {
     return cart.reduce((total, item) => total + item.price * item.quantity, 0);
   };
 
+  const getTotalItems = () => {
+    return cart.reduce((sum, item) => sum + item.quantity, 0);
+  };
+
   const placeOrder = async () => {
     try {
       setLoading(true);
@@ -184,6 +183,7 @@ const TableBooking = () => {
 
       await Promise.all(orderPromises);
       setOrderPlaced(true);
+      setShowCart(false);
       
       setTimeout(() => {
         setCart([]);
@@ -191,7 +191,7 @@ const TableBooking = () => {
         setShowMenu(false);
         setMobileNumber('');
         setCustomerName('');
-      }, 3000);
+      }, 4000);
     } catch (error) {
       console.error('Error placing order:', error);
       alert('Failed to place order. Please try again.');
@@ -213,17 +213,24 @@ const TableBooking = () => {
   const getCategoryIcon = (category) => {
     const icons = {
       'starter': '🥗',
-      'main': '🍽️',
+      'main': '🍛',
       'dessert': '🍰',
       'beverage': '🥤',
       'appetizer': '🍤',
       'soup': '🍲',
-      'salad': '🥬'
+      'salad': '🥬',
+      'pizza': '🍕',
+      'burger': '🍔',
+      'pasta': '🍝',
+      'seafood': '🦐',
+      'grill': '🥩',
+      'breakfast': '🍳',
+      'sandwich': '🥪',
+      'other': '🍴'
     };
-    return icons[category] || '🍴';
+    return icons[category?.toLowerCase()] || '🍴';
   };
 
-  // Get unique categories from menu items
   const categories = ['all', ...new Set(menuItems.map((item) => {
     return item.item_category || item.itemCategory || 'other';
   }))];
@@ -238,59 +245,80 @@ const TableBooking = () => {
   // Loading state
   if (loadingRestaurants) {
     return (
-      <div className="booking-loader">
-        <div className="spinner"></div>
-        <p>Loading restaurants...</p>
+      <div className="tb-loading-screen">
+        <div className="tb-loading-content">
+          <div className="tb-loader"></div>
+          <p>Discovering restaurants...</p>
+        </div>
       </div>
     );
   }
 
-  // Restaurant Selection Screen (when no restaurantId in URL)
+  // Restaurant Selection Screen
   if (!restaurantId && !selectedRestaurant) {
     return (
-      <div className="restaurant-selection-container">
-        <div className="restaurant-selection-card fade-in">
-          <div className="selection-header">
-            <div className="selection-logo">🍽️</div>
-            <h1>Select Restaurant</h1>
-            <p className="table-info">Table {tableNumber}</p>
+      <div className="tb-selection-screen">
+        <div className="tb-selection-container">
+          <div className="tb-selection-header">
+            <div className="tb-brand">
+              <span className="tb-brand-icon">✨</span>
+              <span className="tb-brand-text">FineDine</span>
+            </div>
+            <div className="tb-table-indicator">
+              <span className="tb-table-icon">🪑</span>
+              <span>Table {tableNumber}</span>
+            </div>
           </div>
 
-          {restaurants.length === 0 ? (
-            <div className="no-restaurants">
-              <span className="no-restaurants-icon">🏪</span>
-              <p>No restaurants available at the moment.</p>
-            </div>
-          ) : (
-            <div className="restaurant-selection-list">
-              {restaurants.map((restaurant) => {
-                const id = restaurant.rest_id || restaurant.restId;
-                const imageUrl = restaurant.imageUrl;
-                return (
-                  <div 
-                    key={id} 
-                    className="restaurant-selection-item"
-                    onClick={() => handleSelectRestaurant(restaurant)}
-                  >
-                    <div className="restaurant-selection-image">
-                      {imageUrl ? (
-                        <img src={getImageUrl(imageUrl)} alt={restaurant.name} />
-                      ) : (
-                        <div className="restaurant-placeholder">🏪</div>
-                      )}
+          <div className="tb-selection-content">
+            <h1>Select Your Restaurant</h1>
+            <p className="tb-selection-subtitle">Choose where you're dining today</p>
+
+            {restaurants.length === 0 ? (
+              <div className="tb-empty-restaurants">
+                <div className="tb-empty-icon">🏪</div>
+                <h3>No Restaurants Available</h3>
+                <p>Please check back later</p>
+              </div>
+            ) : (
+              <div className="tb-restaurant-grid">
+                {restaurants.map((restaurant) => {
+                  const id = restaurant.rest_id || restaurant.restId;
+                  const imageUrl = restaurant.imageUrl;
+                  return (
+                    <div 
+                      key={id} 
+                      className="tb-restaurant-card"
+                      onClick={() => handleSelectRestaurant(restaurant)}
+                    >
+                      <div className="tb-restaurant-image">
+                        {imageUrl ? (
+                          <img src={getImageUrl(imageUrl)} alt={restaurant.name} />
+                        ) : (
+                          <div className="tb-restaurant-placeholder">
+                            <span>🍽️</span>
+                          </div>
+                        )}
+                        <div className="tb-restaurant-overlay">
+                          <span className="tb-select-btn">View Menu →</span>
+                        </div>
+                      </div>
+                      <div className="tb-restaurant-info">
+                        <h3>{restaurant.name}</h3>
+                        {restaurant.address && (
+                          <p><span>📍</span> {restaurant.address}</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="restaurant-selection-info">
-                      <h3>{restaurant.name}</h3>
-                      {restaurant.address && (
-                        <p className="restaurant-address">📍 {restaurant.address}</p>
-                      )}
-                    </div>
-                    <div className="restaurant-selection-arrow">→</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="tb-selection-footer">
+            <p>Powered by <span>FineDine</span></p>
+          </div>
         </div>
       </div>
     );
@@ -299,89 +327,140 @@ const TableBooking = () => {
   // Order Success Screen
   if (orderPlaced) {
     return (
-      <div className="order-success">
-        <div className="success-animation fade-in-scale">
-          <div className="success-icon">✓</div>
-          <h2>Order Placed Successfully!</h2>
-          <p>Your order has been sent to the kitchen.</p>
-          <div className="order-details">
-            <p><strong>{customerName}</strong></p>
-            <p>{mobileNumber}</p>
-            <p>{getRestaurantName()} - Table {tableNumber}</p>
+      <div className="tb-success-screen">
+        <div className="tb-success-content">
+          <div className="tb-success-animation">
+            <div className="tb-success-circle">
+              <svg viewBox="0 0 52 52">
+                <circle cx="26" cy="26" r="25" fill="none" />
+                <path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+              </svg>
+            </div>
           </div>
+          <h1>Order Placed!</h1>
+          <p className="tb-success-message">Your order has been sent to the kitchen</p>
+          
+          <div className="tb-success-details">
+            <div className="tb-success-detail-item">
+              <span className="tb-detail-icon">👤</span>
+              <span>{customerName}</span>
+            </div>
+            <div className="tb-success-detail-item">
+              <span className="tb-detail-icon">📱</span>
+              <span>{mobileNumber}</span>
+            </div>
+            <div className="tb-success-detail-item">
+              <span className="tb-detail-icon">🏪</span>
+              <span>{getRestaurantName()}</span>
+            </div>
+            <div className="tb-success-detail-item">
+              <span className="tb-detail-icon">🪑</span>
+              <span>Table {tableNumber}</span>
+            </div>
+          </div>
+
+          <div className="tb-success-items">
+            <h4>Order Summary</h4>
+            {cart.map((item) => (
+              <div key={item.cartId} className="tb-success-item">
+                <span>{item.quantity}x {item.product_name || item.productName}</span>
+                <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+              </div>
+            ))}
+            <div className="tb-success-total">
+              <span>Total</span>
+              <span>₹{calculateTotal().toFixed(2)}</span>
+            </div>
+          </div>
+
+          <p className="tb-success-note">Thank you for dining with us!</p>
         </div>
       </div>
     );
   }
 
-  // Customer Details Entry Screen
+  // Customer Details Screen
   if (!showMenu) {
     return (
-      <div className="mobile-input-container">
-        <div className="mobile-input-card fade-in">
-          <div className="welcome-header">
-            <div className="restaurant-logo">🍽️</div>
-            <h1>{getRestaurantName()}</h1>
-            <p className="table-info">Table {tableNumber}</p>
-          </div>
-
-          <form onSubmit={handleStartOrder} className="mobile-form">
-            <div className="input-group">
-              <label htmlFor="customerName" className="input-label">
-                Your Name
-              </label>
-              <input
-                id="customerName"
-                type="text"
-                className="input"
-                placeholder="Enter your name"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                required
-                autoFocus
-              />
+      <div className="tb-welcome-screen">
+        <div className="tb-welcome-container">
+          <div className="tb-welcome-decor tb-decor-1"></div>
+          <div className="tb-welcome-decor tb-decor-2"></div>
+          
+          <div className="tb-welcome-card">
+            <div className="tb-welcome-header">
+              <div className="tb-restaurant-badge">
+                <span className="tb-badge-icon">🍽️</span>
+              </div>
+              <h1>{getRestaurantName()}</h1>
+              <div className="tb-table-badge">
+                <span>Table {tableNumber}</span>
+              </div>
             </div>
 
-            <div className="input-group">
-              <label htmlFor="mobileNumber" className="input-label">
-                Mobile Number
-              </label>
-              <input
-                id="mobileNumber"
-                type="tel"
-                className="input"
-                placeholder="Enter 10 digit mobile number"
-                value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                required
-                pattern="[0-9]{10}"
-                maxLength="10"
-              />
-              <small className="input-hint">We'll use this to update you about your order</small>
+            <div className="tb-welcome-body">
+              <h2>Welcome!</h2>
+              <p className="tb-welcome-subtitle">Please enter your details to continue</p>
+
+              <form onSubmit={handleStartOrder} className="tb-welcome-form">
+                <div className="tb-form-group">
+                  <label htmlFor="customerName">
+                    <span className="tb-label-icon">👤</span>
+                    Your Name
+                  </label>
+                  <input
+                    id="customerName"
+                    type="text"
+                    placeholder="Enter your name"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div className="tb-form-group">
+                  <label htmlFor="mobileNumber">
+                    <span className="tb-label-icon">📱</span>
+                    Mobile Number
+                  </label>
+                  <input
+                    id="mobileNumber"
+                    type="tel"
+                    placeholder="Enter 10-digit mobile number"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    required
+                    pattern="[0-9]{10}"
+                    maxLength="10"
+                  />
+                  <span className="tb-input-hint">We'll notify you when your order is ready</span>
+                </div>
+
+                <button
+                  type="submit"
+                  className="tb-btn-primary"
+                  disabled={!mobileNumber || mobileNumber.length < 10 || !customerName.trim()}
+                >
+                  <span>View Menu</span>
+                  <span className="tb-btn-arrow">→</span>
+                </button>
+              </form>
             </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary btn-lg"
-              style={{ width: '100%', marginTop: 'var(--spacing-lg)' }}
-              disabled={!mobileNumber || mobileNumber.length < 10 || !customerName.trim()}
-            >
-              View Menu & Order
-            </button>
-          </form>
-
-          <div className="welcome-features">
-            <div className="feature-item">
-              <span className="feature-icon">📱</span>
-              <span>Quick & Easy Ordering</span>
-            </div>
-            <div className="feature-item">
-              <span className="feature-icon">🍽️</span>
-              <span>Fresh From Kitchen</span>
-            </div>
-            <div className="feature-item">
-              <span className="feature-icon">⚡</span>
-              <span>Fast Service</span>
+            <div className="tb-welcome-features">
+              <div className="tb-feature">
+                <span className="tb-feature-icon">⚡</span>
+                <span>Quick Order</span>
+              </div>
+              <div className="tb-feature">
+                <span className="tb-feature-icon">🍳</span>
+                <span>Fresh Food</span>
+              </div>
+              <div className="tb-feature">
+                <span className="tb-feature-icon">💳</span>
+                <span>Easy Pay</span>
+              </div>
             </div>
           </div>
         </div>
@@ -389,200 +468,259 @@ const TableBooking = () => {
     );
   }
 
-  // Menu Browsing Screen
+  // Menu Screen
   return (
-    <div className="table-booking-container">
+    <div className="tb-menu-screen">
       {/* Header */}
-      <header className="booking-header fade-in">
-        <div className="container">
-          <div className="header-content">
-            <div className="customer-info">
-              <h1>{getRestaurantName()}</h1>
-              <p className="customer-details">
-                <span className="customer-name">👤 {customerName}</span>
-                <span className="table-badge">📍 Table {tableNumber}</span>
-              </p>
-            </div>
-            <div className="cart-summary" onClick={() => document.getElementById('cart-section')?.scrollIntoView({ behavior: 'smooth' })}>
-              <div className="cart-icon-wrapper">
-                <svg width="32" height="32" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {cart.length > 0 && <span className="cart-count">{cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
-              </div>
-              <div className="cart-total">₹{calculateTotal().toFixed(2)}</div>
+      <header className="tb-header">
+        <div className="tb-header-content">
+          <div className="tb-header-left">
+            <h1 className="tb-header-title">{getRestaurantName()}</h1>
+            <div className="tb-header-info">
+              <span className="tb-header-badge">
+                <span>👤</span> {customerName}
+              </span>
+              <span className="tb-header-badge">
+                <span>🪑</span> Table {tableNumber}
+              </span>
             </div>
           </div>
+          <button 
+            className="tb-cart-btn"
+            onClick={() => setShowCart(true)}
+          >
+            <div className="tb-cart-icon">
+              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+              {getTotalItems() > 0 && (
+                <span className="tb-cart-count">{getTotalItems()}</span>
+              )}
+            </div>
+            <span className="tb-cart-total">₹{calculateTotal().toFixed(0)}</span>
+          </button>
         </div>
       </header>
 
-      {/* Category Filter */}
-      <div className="category-filter fade-in" style={{ animationDelay: '0.1s' }}>
-        <div className="container">
-          <div className="category-pills">
-            {categories.map((category) => (
-              <button
-                key={category}
-                className={`category-pill ${selectedCategory === category ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(category)}
-              >
-                {category === 'all' ? '🍴 All' : `${getCategoryIcon(category)} ${category}`}
-              </button>
-            ))}
-          </div>
+      {/* Categories */}
+      <div className="tb-categories">
+        <div className="tb-categories-scroll">
+          {categories.map((category) => (
+            <button
+              key={category}
+              className={`tb-category-btn ${selectedCategory === category ? 'active' : ''}`}
+              onClick={() => setSelectedCategory(category)}
+            >
+              <span className="tb-category-icon">
+                {category === 'all' ? '🍴' : getCategoryIcon(category)}
+              </span>
+              <span className="tb-category-name">
+                {category === 'all' ? 'All' : category}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Menu Items */}
-      <main className="booking-main">
-        <div className="container">
-          {loading ? (
-            <div className="loading-state">
-              <div className="spinner"></div>
-              <p>Loading menu...</p>
-            </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">🍽️</div>
-              <h3>No items available</h3>
-              <p>No items available in this category</p>
-            </div>
-          ) : (
-            <div className="menu-grid">
-              {filteredItems.map((item, index) => {
-                const itemId = item.item_id || item.itemId;
-                const productName = item.product_name || item.productName;
-                const productDescription = item.product_description || item.productDescription;
-                const imageUrl = item.image_url || item.imageUrl;
-                const category = item.item_category || item.itemCategory;
-                const priceOptions = getItemPriceOptions(itemId);
-                const defaultPrice = priceOptions[0]?.price || 0;
+      {/* Menu Grid */}
+      <main className="tb-menu-main">
+        {loading ? (
+          <div className="tb-menu-loading">
+            <div className="tb-loader"></div>
+            <p>Loading delicious items...</p>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="tb-menu-empty">
+            <div className="tb-empty-icon">🍽️</div>
+            <h3>No items available</h3>
+            <p>Check back soon for new dishes!</p>
+          </div>
+        ) : (
+          <div className="tb-menu-grid">
+            {filteredItems.map((item, index) => {
+              const itemId = item.item_id || item.itemId;
+              const productName = item.product_name || item.productName;
+              const productDescription = item.product_description || item.productDescription;
+              const imageUrl = item.image_url || item.imageUrl;
+              const category = item.item_category || item.itemCategory;
+              const priceOptions = getItemPriceOptions(itemId);
+              const defaultPrice = priceOptions[0]?.price || 0;
+              const cartItem = cart.find(ci => ci.cartId === `${itemId}-${priceOptions[0]?.portion_size || 'regular'}`);
 
-                return (
-                  <div
-                    key={itemId}
-                    className="menu-item-card card fade-in"
-                    style={{ animationDelay: `${0.1 + index * 0.05}s` }}
-                  >
-                    <div className="menu-item-image">
-                      {imageUrl ? (
-                        <img src={getImageUrl(imageUrl)} alt={productName} />
-                      ) : (
-                        <div className="placeholder-image">
-                          <span className="dish-emoji">{getCategoryIcon(category)}</span>
-                        </div>
-                      )}
-                      <span className="category-tag">{category}</span>
-                    </div>
+              return (
+                <div
+                  key={itemId}
+                  className="tb-menu-item"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  <div className="tb-item-image">
+                    {imageUrl ? (
+                      <img src={getImageUrl(imageUrl)} alt={productName} />
+                    ) : (
+                      <div className="tb-item-placeholder">
+                        <span>{getCategoryIcon(category)}</span>
+                      </div>
+                    )}
+                    <span className="tb-item-category">{category}</span>
+                  </div>
+                  
+                  <div className="tb-item-content">
+                    <h3 className="tb-item-name">{productName}</h3>
+                    {productDescription && (
+                      <p className="tb-item-description">{productDescription}</p>
+                    )}
                     
-                    <div className="menu-item-content">
-                      <h3 className="menu-item-name">{productName}</h3>
-                      <p className="menu-item-description">
-                        {productDescription || 'Delicious dish prepared fresh'}
-                      </p>
-                      
-                      <div className="menu-item-footer">
-                        <div className="price-section">
-                          {priceOptions.length > 1 ? (
-                            <div className="price-options">
-                              {priceOptions.map((priceOpt) => (
-                                <button
-                                  key={priceOpt.price_id}
-                                  className="price-option-btn"
-                                  onClick={() => addToCart(item, priceOpt.portion_size)}
-                                >
-                                  <span className="portion-label">{priceOpt.portion_size}</span>
-                                  <span className="price">₹{priceOpt.price}</span>
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="single-price-row">
-                              <span className="menu-item-price">₹{defaultPrice}</span>
-                              <button
-                                className="btn btn-primary btn-sm btn-add-item"
-                                onClick={() => addToCart(item, priceOptions[0]?.portion_size || 'regular')}
+                    <div className="tb-item-footer">
+                      {priceOptions.length > 1 ? (
+                        <div className="tb-price-options">
+                          {priceOptions.map((priceOpt) => (
+                            <button
+                              key={priceOpt.price_id}
+                              className="tb-price-option"
+                              onClick={() => addToCart(item, priceOpt.portion_size)}
+                            >
+                              <span className="tb-portion">{priceOpt.portion_size}</span>
+                              <span className="tb-price">₹{priceOpt.price}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="tb-single-price">
+                          <span className="tb-item-price">₹{defaultPrice}</span>
+                          {cartItem ? (
+                            <div className="tb-qty-controls">
+                              <button 
+                                className="tb-qty-btn"
+                                onClick={() => updateCartQuantity(cartItem.cartId, cartItem.quantity - 1)}
                               >
-                                <span>Add</span>
-                                <span>+</span>
+                                −
+                              </button>
+                              <span className="tb-qty">{cartItem.quantity}</span>
+                              <button 
+                                className="tb-qty-btn"
+                                onClick={() => updateCartQuantity(cartItem.cartId, cartItem.quantity + 1)}
+                              >
+                                +
                               </button>
                             </div>
+                          ) : (
+                            <button
+                              className="tb-add-btn"
+                              onClick={() => addToCart(item, priceOptions[0]?.portion_size || 'regular')}
+                            >
+                              <span>ADD</span>
+                              <span className="tb-add-icon">+</span>
+                            </button>
                           )}
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </main>
 
-      {/* Cart Section */}
-      {cart.length > 0 && (
-        <div id="cart-section" className="cart-section slide-in-right">
-          <div className="container">
-            <div className="cart-panel card-elevated">
-              <h2 className="cart-title">Your Order</h2>
-              
-              <div className="cart-items">
-                {cart.map((item) => {
-                  const productName = item.product_name || item.productName;
-                  return (
-                    <div key={item.cartId} className="cart-item">
-                      <div className="cart-item-info">
-                        <h4>{productName}</h4>
-                        <p className="cart-item-portion">{item.portionSize}</p>
-                        <p className="cart-item-price">₹{item.price}</p>
-                      </div>
-                      
-                      <div className="cart-item-controls">
-                        <button
-                          className="quantity-btn"
-                          onClick={() => updateCartQuantity(item.cartId, item.quantity - 1)}
-                        >
-                          −
-                        </button>
-                        <span className="quantity">{item.quantity}</span>
-                        <button
-                          className="quantity-btn"
-                          onClick={() => updateCartQuantity(item.cartId, item.quantity + 1)}
-                        >
-                          +
-                        </button>
-                        <button
-                          className="remove-btn"
-                          onClick={() => removeFromCart(item.cartId)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+      {/* Floating Cart Button (Mobile) */}
+      {cart.length > 0 && !showCart && (
+        <div className="tb-floating-cart" onClick={() => setShowCart(true)}>
+          <div className="tb-floating-cart-info">
+            <span className="tb-floating-items">{getTotalItems()} items</span>
+            <span className="tb-floating-total">₹{calculateTotal().toFixed(2)}</span>
+          </div>
+          <span className="tb-floating-btn">View Cart →</span>
+        </div>
+      )}
 
-              <div className="cart-summary-section">
-                <div className="cart-total-row">
-                  <span>Subtotal</span>
-                  <span>₹{calculateTotal().toFixed(2)}</span>
-                </div>
-                <div className="cart-total-row total">
-                  <span>Total</span>
-                  <span>₹{calculateTotal().toFixed(2)}</span>
-                </div>
-              </div>
-
-              <button
-                className="btn btn-primary btn-lg"
-                style={{ width: '100%' }}
-                onClick={placeOrder}
-                disabled={loading}
-              >
-                {loading ? 'Placing Order...' : 'Place Order'}
+      {/* Cart Drawer */}
+      {showCart && (
+        <div className="tb-cart-overlay" onClick={() => setShowCart(false)}>
+          <div className="tb-cart-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="tb-cart-header">
+              <h2>Your Order</h2>
+              <button className="tb-cart-close" onClick={() => setShowCart(false)}>
+                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
+
+            <div className="tb-cart-body">
+              {cart.length === 0 ? (
+                <div className="tb-cart-empty">
+                  <span className="tb-cart-empty-icon">🛒</span>
+                  <p>Your cart is empty</p>
+                  <button className="tb-btn-secondary" onClick={() => setShowCart(false)}>
+                    Browse Menu
+                  </button>
+                </div>
+              ) : (
+                <div className="tb-cart-items">
+                  {cart.map((item) => {
+                    const productName = item.product_name || item.productName;
+                    return (
+                      <div key={item.cartId} className="tb-cart-item">
+                        <div className="tb-cart-item-info">
+                          <h4>{productName}</h4>
+                          <span className="tb-cart-item-portion">{item.portionSize}</span>
+                          <span className="tb-cart-item-price">₹{item.price} each</span>
+                        </div>
+                        <div className="tb-cart-item-actions">
+                          <div className="tb-cart-qty">
+                            <button onClick={() => updateCartQuantity(item.cartId, item.quantity - 1)}>−</button>
+                            <span>{item.quantity}</span>
+                            <button onClick={() => updateCartQuantity(item.cartId, item.quantity + 1)}>+</button>
+                          </div>
+                          <span className="tb-cart-item-total">₹{(item.price * item.quantity).toFixed(2)}</span>
+                          <button 
+                            className="tb-cart-remove"
+                            onClick={() => removeFromCart(item.cartId)}
+                          >
+                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="tb-cart-footer">
+                <div className="tb-cart-summary">
+                  <div className="tb-summary-row">
+                    <span>Subtotal</span>
+                    <span>₹{calculateTotal().toFixed(2)}</span>
+                  </div>
+                  <div className="tb-summary-row tb-summary-total">
+                    <span>Total</span>
+                    <span>₹{calculateTotal().toFixed(2)}</span>
+                  </div>
+                </div>
+                <button 
+                  className="tb-btn-checkout"
+                  onClick={placeOrder}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <span className="tb-btn-loader"></span>
+                      <span>Placing Order...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Place Order</span>
+                      <span className="tb-btn-price">₹{calculateTotal().toFixed(2)}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
