@@ -19,6 +19,10 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
+            
+            {/* Customer table booking with restaurant context */}
+            <Route path="/restaurant/:restaurantId/table/:tableNumber" element={<TableBooking />} />
+            {/* Legacy route - will show restaurant selection if no restaurantId */}
             <Route path="/table/:tableNumber" element={<TableBooking />} />
             
             <Route path="/admin" element={
