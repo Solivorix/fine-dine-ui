@@ -445,7 +445,6 @@ const MenuManagement = () => {
               </div>
               <div className="card-content">
                 <h3 className="item-name">{productName}</h3>
-                <p className="item-id">ID: {productId}</p>
                 {productDescription && (
                   <p className="item-description">{productDescription}</p>
                 )}

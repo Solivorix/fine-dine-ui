@@ -1,200 +1,427 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { itemAPI, orderAPI } from '../services/api';
+import { restaurantAPI, itemAPI, userAPI } from '../services/api';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const [stats, setStats] = useState({
-    totalItems: 0,
-    activeOrders: 0,
-    todayOrders: 0,
+    totalRestaurants: 0,
+    totalMenuItems: 0,
+    totalUsers: 0,
+    availableItems: 0
   });
+  const [recentRestaurants, setRecentRestaurants] = useState([]);
+  const [recentItems, setRecentItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    loadData();
+    fetchDashboardData();
+    
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+
+    return () => clearInterval(timer);
   }, []);
 
-  const loadData = async () => {
+  const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const [itemsRes, ordersRes] = await Promise.all([
-        itemAPI.getAll(),
-        orderAPI.getAll()
-      ]);
       
+      const [restaurantsRes, itemsRes, usersRes] = await Promise.all([
+        restaurantAPI.getAll(),
+        itemAPI.getAll(),
+        userAPI.getAll()
+      ]);
+
+      const restaurants = restaurantsRes.data || [];
+      const items = itemsRes.data || [];
+      const users = usersRes.data || [];
+
+      const availableItems = items.filter(i => 
+        (i.item_status || i.itemStatus) === 'available'
+      ).length;
+
       setStats({
-        totalItems: itemsRes.data.length,
-        activeOrders: ordersRes.data.length,
-        todayOrders: ordersRes.data.filter(order => {
-          const orderDate = new Date(order.createdAt);
-          const today = new Date();
-          return orderDate.toDateString() === today.toDateString();
-        }).length,
+        totalRestaurants: restaurants.length,
+        totalMenuItems: items.length,
+        totalUsers: users.length,
+        availableItems
       });
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      setStats({
-        totalItems: 0,
-        activeOrders: 0,
-        todayOrders: 0,
-      });
+
+      setRecentRestaurants(restaurants.slice(0, 5));
+      setRecentItems(items.slice(0, 6));
+
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const getGreeting = () => {
+    const hour = currentTime.getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  const formatDate = () => {
+    return currentTime.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const getCategoryIcon = (category) => {
+    const icons = {
+      'starter': '🥗',
+      'main': '🍽️',
+      'dessert': '🍰',
+      'beverage': '🥤',
+      'appetizer': '🍤',
+      'soup': '🍲',
+      'salad': '🥬'
+    };
+    return icons[category] || '🍴';
+  };
+
+  if (loading) {
+    return (
+      <div className="dashboard-loading">
+        <div className="loading-spinner"></div>
+        <p>Loading dashboard...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-dashboard">
-      {/* Header */}
-      <header className="admin-header">
-        <div className="container">
-          <div className="header-content">
-            <div className="logo-section">
-              <h1>🍽️ Restaurant Admin</h1>
-              <p>Welcome back, {user?.loginId || 'Admin'}</p>
-            </div>
-            <button className="btn btn-outline" onClick={logout}>
-              Logout
-            </button>
+      {/* Sidebar */}
+      <aside className="dashboard-sidebar">
+        <div className="sidebar-header">
+          <div className="logo">
+            <span className="logo-icon">🍽️</span>
+            <span className="logo-text">FineDine</span>
           </div>
         </div>
-      </header>
+        
+        <nav className="sidebar-nav">
+          <div className="nav-section">
+            <span className="nav-section-title">Main Menu</span>
+            <Link to="/admin" className="nav-item active">
+              <span className="nav-icon">📊</span>
+              <span>Dashboard</span>
+            </Link>
+            <Link to="/admin/restaurants" className="nav-item">
+              <span className="nav-icon">🏪</span>
+              <span>Restaurants</span>
+            </Link>
+            <Link to="/admin/menu" className="nav-item">
+              <span className="nav-icon">🍽️</span>
+              <span>Menu Items</span>
+            </Link>
+            <Link to="/admin/users" className="nav-item">
+              <span className="nav-icon">👥</span>
+              <span>Users</span>
+            </Link>
+          </div>
+          
+          <div className="nav-section">
+            <span className="nav-section-title">Operations</span>
+            <Link to="/admin/orders" className="nav-item">
+              <span className="nav-icon">📋</span>
+              <span>Orders</span>
+            </Link>
+            <a href="/table/1" target="_blank" rel="noopener noreferrer" className="nav-item">
+              <span className="nav-icon">📱</span>
+              <span>Preview Menu</span>
+            </a>
+          </div>
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="user-profile">
+            <div className="user-avatar">
+              {user?.loginId?.charAt(0)?.toUpperCase() || 'A'}
+            </div>
+            <div className="user-info">
+              <span className="user-name">{user?.loginId || 'Admin'}</span>
+              <span className="user-role">{user?.role || 'Administrator'}</span>
+            </div>
+          </div>
+          <button className="btn-logout" onClick={logout}>
+            <span>🚪</span> Logout
+          </button>
+        </div>
+      </aside>
 
       {/* Main Content */}
-      <main className="admin-main">
-        <div className="container">
-          {/* Stats Cards */}
-          <div className="stats-grid fade-in">
-            <div className="stat-card card">
-              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #d4af37 0%, #b8941f 100%)' }}>
-                📋
+      <main className="dashboard-main">
+        {/* Top Header */}
+        <header className="dashboard-header">
+          <div className="header-welcome">
+            <h1>{getGreeting()}, {user?.loginId || 'Admin'}! 👋</h1>
+            <p className="header-date">{formatDate()}</p>
+          </div>
+          <div className="header-actions">
+            <button className="btn-refresh" onClick={fetchDashboardData}>
+              <span>🔄</span>
+              Refresh
+            </button>
+          </div>
+        </header>
+
+        {/* Stats Grid */}
+        <section className="stats-grid">
+          <div className="stat-card stat-restaurants">
+            <div className="stat-card-content">
+              <div className="stat-card-info">
+                <span className="stat-card-value">{stats.totalRestaurants}</span>
+                <span className="stat-card-label">Total Restaurants</span>
               </div>
-              <div className="stat-content">
-                <h3>{stats.totalItems}</h3>
-                <p>Menu Items</p>
+              <div className="stat-card-icon">
+                <span>🏪</span>
               </div>
             </div>
-
-            <div className="stat-card card" style={{ animationDelay: '0.1s' }}>
-              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #e67e22 0%, #d35400 100%)' }}>
-                🛎️
-              </div>
-              <div className="stat-content">
-                <h3>{stats.activeOrders}</h3>
-                <p>Total Orders</p>
-              </div>
-            </div>
-
-            <div className="stat-card card" style={{ animationDelay: '0.2s' }}>
-              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #2d7a3e 0%, #27ae60 100%)' }}>
-                ✅
-              </div>
-              <div className="stat-content">
-                <h3>{stats.todayOrders}</h3>
-                <p>Today's Orders</p>
-              </div>
+            <div className="stat-card-footer">
+              <span className="stat-trend positive">Active locations</span>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="quick-actions fade-in" style={{ animationDelay: '0.3s' }}>
+          <div className="stat-card stat-menu">
+            <div className="stat-card-content">
+              <div className="stat-card-info">
+                <span className="stat-card-value">{stats.totalMenuItems}</span>
+                <span className="stat-card-label">Menu Items</span>
+              </div>
+              <div className="stat-card-icon">
+                <span>🍽️</span>
+              </div>
+            </div>
+            <div className="stat-card-footer">
+              <span className="stat-trend positive">{stats.availableItems} available</span>
+            </div>
+          </div>
+
+          <div className="stat-card stat-users">
+            <div className="stat-card-content">
+              <div className="stat-card-info">
+                <span className="stat-card-value">{stats.totalUsers}</span>
+                <span className="stat-card-label">Total Users</span>
+              </div>
+              <div className="stat-card-icon">
+                <span>👥</span>
+              </div>
+            </div>
+            <div className="stat-card-footer">
+              <span className="stat-trend positive">Staff members</span>
+            </div>
+          </div>
+
+          <div className="stat-card stat-orders">
+            <div className="stat-card-content">
+              <div className="stat-card-info">
+                <span className="stat-card-value">--</span>
+                <span className="stat-card-label">Today's Orders</span>
+              </div>
+              <div className="stat-card-icon">
+                <span>📋</span>
+              </div>
+            </div>
+            <div className="stat-card-footer">
+              <span className="stat-trend">View orders</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Actions */}
+        <section className="quick-actions-section">
+          <div className="section-header">
             <h2>Quick Actions</h2>
-            <div className="action-grid">
-              <Link to="/admin/restaurants" className="action-card card card-elevated">
-                <div className="action-icon">🏪</div>
-                <h3>Manage Restaurants</h3>
-                <p>Add and configure restaurant locations</p>
-              </Link>
-
-              <Link to="/admin/menu" className="action-card card card-elevated">
-                <div className="action-icon">📋</div>
-                <h3>Manage Menu</h3>
-                <p>Add, edit items and set prices</p>
-              </Link>
-
-              <Link to="/admin/orders" className="action-card card card-elevated">
-                <div className="action-icon">🛎️</div>
-                <h3>View Orders</h3>
-                <p>Track and manage customer orders</p>
-              </Link>
-
-              <Link to="/admin/users" className="action-card card card-elevated">
-                <div className="action-icon">👥</div>
-                <h3>Manage Users</h3>
-                <p>Add staff and manage accounts</p>
-              </Link>
-
-              <a 
-                href="/table/1" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="action-card card card-elevated"
-              >
-                <div className="action-icon">📱</div>
-                <h3>Preview Menu</h3>
-                <p>See customer view (Table 1)</p>
-              </a>
-            </div>
+            <p>Navigate to frequently used sections</p>
           </div>
-
-          {/* Instructions Section */}
-          <div className="instructions-section fade-in" style={{ animationDelay: '0.4s' }}>
-            <div className="section-header">
-              <h2>How It Works</h2>
-            </div>
-
-            <div className="instructions-grid">
-              <div className="instruction-card card">
-                <div className="instruction-number">1</div>
-                <h3>Add Menu Items</h3>
-                <p>Go to "Manage Menu" to add your dishes with descriptions and prices</p>
+          <div className="quick-actions-grid">
+            <Link to="/admin/restaurants" className="quick-action-card">
+              <div className="quick-action-icon gold">
+                <span>🏪</span>
               </div>
-
-              <div className="instruction-card card">
-                <div className="instruction-number">2</div>
-                <h3>Generate QR Codes</h3>
-                <p>Create QR codes for each table pointing to: <br/>
-                <code>/table/1</code>, <code>/table/2</code>, etc.</p>
+              <div className="quick-action-info">
+                <span className="quick-action-title">Restaurants</span>
+                <span className="quick-action-subtitle">Manage locations</span>
               </div>
+              <div className="quick-action-arrow">→</div>
+            </Link>
 
-              <div className="instruction-card card">
-                <div className="instruction-number">3</div>
-                <h3>Customers Order</h3>
-                <p>Customers scan QR, enter mobile number, browse menu and order directly</p>
+            <Link to="/admin/menu" className="quick-action-card">
+              <div className="quick-action-icon green">
+                <span>🍽️</span>
               </div>
+              <div className="quick-action-info">
+                <span className="quick-action-title">Menu Items</span>
+                <span className="quick-action-subtitle">Manage dishes</span>
+              </div>
+              <div className="quick-action-arrow">→</div>
+            </Link>
 
-              <div className="instruction-card card">
-                <div className="instruction-number">4</div>
-                <h3>Track Orders</h3>
-                <p>View all orders in real-time from the "View Orders" section</p>
+            <Link to="/admin/users" className="quick-action-card">
+              <div className="quick-action-icon purple">
+                <span>👥</span>
               </div>
-            </div>
+              <div className="quick-action-info">
+                <span className="quick-action-title">Users</span>
+                <span className="quick-action-subtitle">Manage staff</span>
+              </div>
+              <div className="quick-action-arrow">→</div>
+            </Link>
+
+            <Link to="/admin/orders" className="quick-action-card">
+              <div className="quick-action-icon orange">
+                <span>📋</span>
+              </div>
+              <div className="quick-action-info">
+                <span className="quick-action-title">Orders</span>
+                <span className="quick-action-subtitle">View orders</span>
+              </div>
+              <div className="quick-action-arrow">→</div>
+            </Link>
           </div>
+        </section>
 
-          {/* QR Code Info */}
-          <div className="qr-info-section fade-in" style={{ animationDelay: '0.5s' }}>
-            <div className="card" style={{ padding: 'var(--spacing-2xl)', textAlign: 'center' }}>
-              <h2 style={{ marginBottom: 'var(--spacing-lg)' }}>📱 Generate QR Codes for Tables</h2>
-              <p style={{ marginBottom: 'var(--spacing-md)', color: 'var(--text-light)' }}>
-                Create QR codes pointing to these URLs for each table:
-              </p>
-              <div style={{ background: 'var(--bg)', padding: 'var(--spacing-lg)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--spacing-lg)' }}>
-                <code style={{ fontSize: '1.1rem', color: 'var(--accent-dark)' }}>
-                  {window.location.origin}/table/1<br/>
-                  {window.location.origin}/table/2<br/>
-                  {window.location.origin}/table/3<br/>
-                  ... and so on
-                </code>
-              </div>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                Use any free QR code generator like <a href="https://www.qr-code-generator.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>qr-code-generator.com</a>
-              </p>
+        {/* Content Grid */}
+        <div className="dashboard-content-grid">
+          {/* Recent Restaurants */}
+          <section className="dashboard-card recent-restaurants">
+            <div className="card-header">
+              <h3>
+                <span className="card-header-icon">🏪</span>
+                Recent Restaurants
+              </h3>
+              <Link to="/admin/restaurants" className="btn-view-all">
+                View All →
+              </Link>
             </div>
-          </div>
+            <div className="card-content">
+              {recentRestaurants.length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">🏪</span>
+                  <p>No restaurants yet</p>
+                  <Link to="/admin/restaurants" className="btn-add-new">
+                    Add Restaurant
+                  </Link>
+                </div>
+              ) : (
+                <div className="restaurant-list">
+                  {recentRestaurants.map((restaurant, index) => {
+                    const id = restaurant.rest_id || restaurant.restId;
+                    return (
+                      <div key={id || index} className="restaurant-list-item">
+                        <div className="restaurant-avatar">
+                          {restaurant.name?.charAt(0)?.toUpperCase() || 'R'}
+                        </div>
+                        <div className="restaurant-info">
+                          <span className="restaurant-name">{restaurant.name}</span>
+                          <span className="restaurant-address">
+                            {restaurant.address || 'No address'}
+                          </span>
+                        </div>
+                        <div className="restaurant-contact">
+                          {restaurant.primaryContactNumber || '--'}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Recent Menu Items */}
+          <section className="dashboard-card recent-items">
+            <div className="card-header">
+              <h3>
+                <span className="card-header-icon">🍽️</span>
+                Recent Menu Items
+              </h3>
+              <Link to="/admin/menu" className="btn-view-all">
+                View All →
+              </Link>
+            </div>
+            <div className="card-content">
+              {recentItems.length === 0 ? (
+                <div className="empty-state">
+                  <span className="empty-icon">🍽️</span>
+                  <p>No menu items yet</p>
+                  <Link to="/admin/menu" className="btn-add-new">
+                    Add Menu Item
+                  </Link>
+                </div>
+              ) : (
+                <div className="items-grid-small">
+                  {recentItems.map((item, index) => {
+                    const id = item.item_id || item.itemId;
+                    const name = item.product_name || item.productName;
+                    const status = item.item_status || item.itemStatus;
+                    const category = item.item_category || item.itemCategory;
+                    return (
+                      <div key={id || index} className="item-mini-card">
+                        <div className="item-mini-icon">
+                          {getCategoryIcon(category)}
+                        </div>
+                        <div className="item-mini-info">
+                          <span className="item-mini-name">{name}</span>
+                          <span className={`item-mini-status ${status}`}>
+                            {status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
         </div>
+
+        {/* How It Works Section */}
+        <section className="instructions-section">
+          <div className="section-header">
+            <h2>How It Works</h2>
+            <p>Quick guide to get started</p>
+          </div>
+          <div className="instructions-grid">
+            <div className="instruction-card">
+              <div className="instruction-number">1</div>
+              <h3>Add Menu Items</h3>
+              <p>Go to "Menu Items" to add dishes with descriptions</p>
+            </div>
+            <div className="instruction-card">
+              <div className="instruction-number">2</div>
+              <h3>Generate QR Codes</h3>
+              <p>Create QR codes for each table pointing to /table/1, /table/2, etc.</p>
+            </div>
+            <div className="instruction-card">
+              <div className="instruction-number">3</div>
+              <h3>Customers Order</h3>
+              <p>Customers scan QR, browse menu and order directly</p>
+            </div>
+            <div className="instruction-card">
+              <div className="instruction-number">4</div>
+              <h3>Track Orders</h3>
+              <p>View all orders in real-time from the "Orders" section</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="dashboard-footer">
+          <p>© 2025 FineDine Restaurant Management System. All rights reserved.</p>
+        </footer>
       </main>
     </div>
   );
