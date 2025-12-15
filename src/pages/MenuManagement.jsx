@@ -1,72 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { itemAPI, priceAPI, restaurantAPI, uploadAPI } from '../services/api';
-import './MenuManagement.css';
+import { orderAPI, restaurantAPI, itemAPI } from '../services/api';
+import './OrderManagement.css';
 
-const MenuManagement = () => {
+const OrderManagement = () => {
   const navigate = useNavigate();
-  const [items, setItems] = useState([]);
-  const [prices, setPrices] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showItemModal, setShowItemModal] = useState(false);
-  const [showPriceModal, setShowPriceModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [selectedItemForPrice, setSelectedItemForPrice] = useState(null);
-  const [editingPrice, setEditingPrice] = useState(null);
-
-  // Filters
-  const [filterRestaurant, setFilterRestaurant] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [filterFoodType, setFilterFoodType] = useState('all');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [error, setError] = useState(null);
+  
+  const [selectedRestaurant, setSelectedRestaurant] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Image upload
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
-
-  // Predefined categories
-  const categories = [
-    'starter', 'main', 'dessert', 'beverage', 'appetizer', 
-    'soup', 'salad', 'pizza', 'burger', 'pasta', 
-    'seafood', 'grill', 'breakfast', 'sandwich', 'biryani',
-    'chinese', 'indian', 'continental', 'snacks', 'other'
+  const ORDER_STATUSES = [
+    { value: 'pending', label: 'Pending', color: '#f59e0b', bg: '#fef3c7' },
+    { value: 'confirmed', label: 'Confirmed', color: '#3b82f6', bg: '#dbeafe' },
+    { value: 'preparing', label: 'Preparing', color: '#8b5cf6', bg: '#ede9fe' },
+    { value: 'ready', label: 'Ready', color: '#10b981', bg: '#d1fae5' },
+    { value: 'served', label: 'Served', color: '#06b6d4', bg: '#cffafe' },
+    { value: 'completed', label: 'Completed', color: '#22c55e', bg: '#dcfce7' },
+    { value: 'cancelled', label: 'Cancelled', color: '#ef4444', bg: '#fee2e2' }
   ];
-
-  // Food types
-  const foodTypes = [
-    { value: 'veg', label: 'Vegetarian', icon: '🟢' },
-    { value: 'non-veg', label: 'Non-Vegetarian', icon: '🔴' },
-    { value: 'egg', label: 'Contains Egg', icon: '🟡' }
-  ];
-
-  // Portion sizes
-  const portionSizes = [
-    'small', 'regular', 'medium', 'large', 'extra-large', 
-    'half', 'full', 'quarter', 'single', 'double'
-  ];
-
-  // Item form - uses camelCase (matches ItemDto)
-  const [itemForm, setItemForm] = useState({
-    productId: '',
-    productName: '',
-    productDescription: '',
-    restaurantId: '',
-    itemStatus: 'available',
-    itemCategory: '',
-    foodType: 'veg',
-    imageUrl: ''
-  });
-
-  // Price form - will be converted to snake_case when sending (matches PriceDto)
-  const [priceForm, setPriceForm] = useState({
-    portionSize: 'regular',
-    price: ''
-  });
 
   useEffect(() => {
     fetchData();
@@ -75,719 +32,321 @@ const MenuManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [itemsRes, pricesRes, restaurantsRes] = await Promise.all([
-        itemAPI.getAll(),
-        priceAPI.getAll(),
-        restaurantAPI.getAll()
+      const [ordersRes, restaurantsRes, itemsRes] = await Promise.all([
+        orderAPI.getAll(),
+        restaurantAPI.getAll(),
+        itemAPI.getAll()
       ]);
-      console.log('Items:', itemsRes.data);
-      console.log('Prices:', pricesRes.data);
-      console.log('Restaurants:', restaurantsRes.data);
-      setItems(itemsRes.data || []);
-      setPrices(pricesRes.data || []);
+      
+      const ordersData = ordersRes.data || [];
+      ordersData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      setOrders(ordersData);
       setRestaurants(restaurantsRes.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
+      setItems(itemsRes.data || []);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load orders');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper to get Item field (camelCase)
-  const getItemField = (item, field) => {
-    if (!item) return undefined;
-    return item[field];
-  };
-
-  // Helper to get Price field (snake_case from backend)
-  const getPriceField = (price, field) => {
-    if (!price) return undefined;
-    const snakeCase = field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    return price[field] !== undefined ? price[field] : price[snakeCase];
-  };
-
-  // Helper to get Restaurant field
-  const getRestField = (rest, field) => {
-    if (!rest) return undefined;
-    const snakeCase = field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-    return rest[field] !== undefined ? rest[field] : rest[snakeCase];
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const uploadImage = async () => {
-    if (!imageFile) return null;
-
+  const handleStatusChange = async (orderId, newStatus) => {
     try {
-      setUploadingImage(true);
-      const response = await uploadAPI.uploadItemImage(imageFile);
-      console.log('Upload response:', response.data);
-      
-      // Backend returns { success: "true", fileUrl: "...", message: "..." }
-      // IMPORTANT: Must use 'fileUrl' - that's what the backend returns!
-      let imageUrl = null;
-      if (response.data) {
-        imageUrl = response.data.fileUrl || response.data.imageUrl || response.data.url || response.data.path;
-      }
-      
-      // Ensure it's a string, not an object
-      if (imageUrl && typeof imageUrl !== 'string') {
-        console.error('imageUrl is not a string:', imageUrl);
-        imageUrl = null;
-      }
-      
-      console.log('Image URL:', imageUrl, 'type:', typeof imageUrl);
-      return imageUrl;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Failed to upload image: ' + (error.response?.data?.message || error.message));
-      return null;
-    } finally {
-      setUploadingImage(false);
+      await orderAPI.updateStatus(orderId, newStatus, 'admin');
+      setOrders(prev => prev.map(order => 
+        order.orderId === orderId ? { ...order, orderStatus: newStatus } : order
+      ));
+    } catch (err) {
+      alert('Failed to update order status');
+      console.error(err);
     }
   };
 
-  const handleItemSubmit = async (e) => {
-    e.preventDefault();
+  const handleDeleteOrder = async (orderId) => {
+    if (!window.confirm('Are you sure you want to delete this order?')) return;
     try {
-      let imageUrl = itemForm.imageUrl;
-
-      // Upload image first if selected
-      if (imageFile) {
-        const uploadedUrl = await uploadImage();
-        if (uploadedUrl && typeof uploadedUrl === 'string') {
-          imageUrl = uploadedUrl;
-        }
-      }
-
-      // SAFETY: Ensure imageUrl is a string or null
-      const safeImageUrl = (imageUrl && typeof imageUrl === 'string') ? imageUrl : null;
-
-      // Prepare item data (camelCase for ItemDto)
-      const itemData = {
-        productId: itemForm.productId,
-        productName: itemForm.productName,
-        productDescription: itemForm.productDescription,
-        restaurantId: itemForm.restaurantId,
-        itemStatus: itemForm.itemStatus,
-        itemCategory: itemForm.itemCategory,
-        foodType: itemForm.foodType,
-        imageUrl: safeImageUrl
-      };
-
-      // Remove null fields
-      if (!itemData.imageUrl) {
-        delete itemData.imageUrl;
-      }
-
-      console.log('Submitting item:', itemData);
-      console.log('imageUrl type:', typeof itemData.imageUrl);
-
-      if (editingItem) {
-        const editItemId = getItemField(editingItem, 'itemId');
-        await itemAPI.update(editItemId, itemData);
-      } else {
-        // Create expects an array
-        await itemAPI.create([itemData]);
-      }
-
-      fetchData();
-      resetItemForm();
-      setShowItemModal(false);
-    } catch (error) {
-      console.error('Error saving item:', error);
-      alert('Failed to save item: ' + (error.response?.data?.message || error.message));
+      await orderAPI.delete(orderId);
+      setOrders(prev => prev.filter(order => order.orderId !== orderId));
+    } catch (err) {
+      alert('Failed to delete order');
+      console.error(err);
     }
-  };
-
-  const handlePriceSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      // PriceDto uses snake_case
-      const priceData = {
-        item_id: getItemField(selectedItemForPrice, 'itemId'),
-        restaurant_id: getItemField(selectedItemForPrice, 'restaurantId'),
-        portion_size: priceForm.portionSize,
-        price: parseFloat(priceForm.price)
-      };
-
-      console.log('Submitting price:', priceData);
-
-      if (editingPrice) {
-        const priceId = getPriceField(editingPrice, 'priceId');
-        await priceAPI.update(priceId, priceData);
-      } else {
-        await priceAPI.create(priceData);
-      }
-      
-      fetchData();
-      setShowPriceModal(false);
-      resetPriceForm();
-    } catch (error) {
-      console.error('Error saving price:', error);
-      alert('Failed to save price: ' + (error.response?.data?.message || error.message));
-    }
-  };
-
-  const handleEditItem = (item) => {
-    setEditingItem(item);
-    setItemForm({
-      productId: getItemField(item, 'productId') || '',
-      productName: getItemField(item, 'productName') || '',
-      productDescription: getItemField(item, 'productDescription') || '',
-      restaurantId: getItemField(item, 'restaurantId') || '',
-      itemStatus: getItemField(item, 'itemStatus') || 'available',
-      itemCategory: getItemField(item, 'itemCategory') || '',
-      foodType: getItemField(item, 'foodType') || 'veg',
-      imageUrl: getItemField(item, 'imageUrl') || ''
-    });
-    const imageUrl = getItemField(item, 'imageUrl');
-    setImagePreview(imageUrl ? getImageUrl(imageUrl) : null);
-    setShowItemModal(true);
-  };
-
-  const handleEditPrice = (price, item) => {
-    setSelectedItemForPrice(item);
-    setEditingPrice(price);
-    setPriceForm({
-      portionSize: getPriceField(price, 'portionSize') || 'regular',
-      price: price.price?.toString() || ''
-    });
-    setShowPriceModal(true);
-  };
-
-  const handleAddPrice = (item) => {
-    setSelectedItemForPrice(item);
-    setEditingPrice(null);
-    resetPriceForm();
-    setShowPriceModal(true);
-  };
-
-  const handleDeleteItem = async (itemId) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
-      try {
-        await itemAPI.delete(itemId);
-        fetchData();
-      } catch (error) {
-        console.error('Error deleting item:', error);
-        alert('Failed to delete item');
-      }
-    }
-  };
-
-  const handleDeletePrice = async (priceId) => {
-    if (window.confirm('Are you sure you want to delete this price?')) {
-      try {
-        await priceAPI.delete(priceId);
-        fetchData();
-      } catch (error) {
-        console.error('Error deleting price:', error);
-        alert('Failed to delete price');
-      }
-    }
-  };
-
-  const resetItemForm = () => {
-    setEditingItem(null);
-    setItemForm({
-      productId: '',
-      productName: '',
-      productDescription: '',
-      restaurantId: '',
-      itemStatus: 'available',
-      itemCategory: '',
-      foodType: 'veg',
-      imageUrl: ''
-    });
-    setImageFile(null);
-    setImagePreview(null);
-  };
-
-  const resetPriceForm = () => {
-    setEditingPrice(null);
-    setPriceForm({
-      portionSize: 'regular',
-      price: ''
-    });
   };
 
   const getRestaurantName = (restaurantId) => {
-    const restaurant = restaurants.find(r => getRestField(r, 'restId') === restaurantId);
+    const restaurant = restaurants.find(r => r.rest_id === restaurantId || r.restId === restaurantId);
     return restaurant?.name || 'Unknown';
   };
 
-  const getItemPrices = (itemId) => {
-    return prices.filter(p => getPriceField(p, 'itemId') === itemId);
+  const getItemName = (productId) => {
+    const item = items.find(i => i.itemId === productId || i.productId === productId);
+    return item?.productName || 'Unknown Item';
   };
 
-  const getImageUrl = (imageUrl) => {
-    if (!imageUrl) return null;
-    if (imageUrl.startsWith('http')) return imageUrl;
-    if (imageUrl.startsWith('/')) return `${API_BASE_URL}${imageUrl}`;
-    return `${API_BASE_URL}/${imageUrl}`;
+  const getStatusInfo = (status) => {
+    return ORDER_STATUSES.find(s => s.value === status) || ORDER_STATUSES[0];
   };
 
-  const getFoodTypeInfo = (foodType) => {
-    const type = foodTypes.find(ft => ft.value === foodType);
-    return type || { value: foodType, label: foodType, icon: '⚪' };
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
-  const getCategoryIcon = (category) => {
-    const icons = {
-      'starter': '🥗', 'main': '🍛', 'dessert': '🍰', 'beverage': '🥤',
-      'appetizer': '🍤', 'soup': '🍲', 'salad': '🥬', 'pizza': '🍕',
-      'burger': '🍔', 'pasta': '🍝', 'seafood': '🦐', 'grill': '🥩',
-      'breakfast': '🍳', 'sandwich': '🥪', 'biryani': '🍚', 'chinese': '🥡',
-      'indian': '🍛', 'continental': '🍽️', 'snacks': '🍿', 'other': '🍴'
-    };
-    return icons[category?.toLowerCase()] || '🍴';
-  };
-
-  // FRONTEND FILTERING
-  const filteredItems = items.filter(item => {
-    const restaurantId = getItemField(item, 'restaurantId');
-    const category = getItemField(item, 'itemCategory');
-    const foodType = getItemField(item, 'foodType');
-    const status = getItemField(item, 'itemStatus');
-    const productName = getItemField(item, 'productName') || '';
-
-    const matchesRestaurant = filterRestaurant === 'all' || restaurantId === filterRestaurant;
-    const matchesCategory = filterCategory === 'all' || category === filterCategory;
-    const matchesFoodType = filterFoodType === 'all' || foodType === filterFoodType;
-    const matchesStatus = filterStatus === 'all' || status === filterStatus;
-    const matchesSearch = searchTerm === '' || productName.toLowerCase().includes(searchTerm.toLowerCase());
-
-    return matchesRestaurant && matchesCategory && matchesFoodType && matchesStatus && matchesSearch;
+  const filteredOrders = orders.filter(order => {
+    const matchesRestaurant = selectedRestaurant === 'all' || 
+      order.restaurantId === selectedRestaurant;
+    const matchesStatus = selectedStatus === 'all' || 
+      order.orderStatus === selectedStatus;
+    const matchesSearch = searchTerm === '' || 
+      order.createdBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customerPhone?.includes(searchTerm) ||
+      order.tableNumber?.toString().includes(searchTerm);
+    return matchesRestaurant && matchesStatus && matchesSearch;
   });
 
-  const availableCategories = [...new Set(items.map(item => getItemField(item, 'itemCategory')).filter(Boolean))];
+  const stats = {
+    total: orders.length,
+    pending: orders.filter(o => o.orderStatus === 'pending').length,
+    preparing: orders.filter(o => o.orderStatus === 'preparing').length,
+    ready: orders.filter(o => o.orderStatus === 'ready').length,
+    completed: orders.filter(o => o.orderStatus === 'completed').length
+  };
+
+  const handleBack = () => navigate('/admin');
 
   if (loading) {
     return (
-      <div className="mm-loading">
-        <div className="mm-loader"></div>
-        <p>Loading menu items...</p>
+      <div className="order-management">
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Loading orders...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mm-container">
-      {/* Header */}
-      <header className="mm-header">
-        <div className="mm-header-content">
-          <div className="mm-header-left">
-            <button className="mm-back-btn" onClick={() => navigate('/admin')}>
-              ← Back
-            </button>
-            <div className="mm-header-title-section">
-              <h1>🍽️ Menu Management</h1>
-              <p className="mm-header-subtitle">Manage items and prices</p>
-            </div>
-          </div>
-          <div className="mm-header-actions">
-            <button className="mm-refresh-btn" onClick={fetchData}>🔄</button>
-            <button className="mm-btn-primary" onClick={() => setShowItemModal(true)}>
-              + Add Item
-            </button>
+    <div className="order-management">
+      <div className="page-header">
+        <div className="header-left">
+          <button className="btn-back" onClick={handleBack}>
+            <span className="back-icon">←</span>
+            <span>Back</span>
+          </button>
+          <div className="header-title">
+            <h1>Order Management</h1>
+            <p className="header-subtitle">Monitor and manage customer orders</p>
           </div>
         </div>
-      </header>
+        <button className="btn-refresh" onClick={fetchData}>
+          <span>🔄</span>
+          <span>Refresh</span>
+        </button>
+      </div>
 
-      {/* Stats */}
-      <div className="mm-stats">
-        <div className="mm-stat-card">
-          <div className="mm-stat-icon">📦</div>
-          <div className="mm-stat-info">
-            <span className="mm-stat-value">{items.length}</span>
-            <span className="mm-stat-label">Items</span>
+      {error && (
+        <div className="error-message">
+          <span>⚠️</span> {error}
+        </div>
+      )}
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon">📋</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.total}</span>
+            <span className="stat-label">Total Orders</span>
           </div>
         </div>
-        <div className="mm-stat-card veg">
-          <div className="mm-stat-icon">🟢</div>
-          <div className="mm-stat-info">
-            <span className="mm-stat-value">{items.filter(i => getItemField(i, 'foodType') === 'veg').length}</span>
-            <span className="mm-stat-label">Veg</span>
+        <div className="stat-card pending">
+          <div className="stat-icon">⏳</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.pending}</span>
+            <span className="stat-label">Pending</span>
           </div>
         </div>
-        <div className="mm-stat-card nonveg">
-          <div className="mm-stat-icon">🔴</div>
-          <div className="mm-stat-info">
-            <span className="mm-stat-value">{items.filter(i => getItemField(i, 'foodType') === 'non-veg').length}</span>
-            <span className="mm-stat-label">Non-Veg</span>
+        <div className="stat-card preparing">
+          <div className="stat-icon">👨‍🍳</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.preparing}</span>
+            <span className="stat-label">Preparing</span>
           </div>
         </div>
-        <div className="mm-stat-card">
-          <div className="mm-stat-icon">💰</div>
-          <div className="mm-stat-info">
-            <span className="mm-stat-value">{prices.length}</span>
-            <span className="mm-stat-label">Prices</span>
+        <div className="stat-card ready">
+          <div className="stat-icon">✅</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.ready}</span>
+            <span className="stat-label">Ready</span>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mm-filters">
-        <div className="mm-search">
-          <span className="mm-search-icon">🔍</span>
+      <div className="filters-section">
+        <div className="filter-group">
+          <label>Restaurant</label>
+          <select 
+            value={selectedRestaurant} 
+            onChange={(e) => setSelectedRestaurant(e.target.value)}
+          >
+            <option value="all">All Restaurants</option>
+            {restaurants.map(r => (
+              <option key={r.rest_id || r.restId} value={r.rest_id || r.restId}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
+          <label>Status</label>
+          <select 
+            value={selectedStatus} 
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            {ORDER_STATUSES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group search">
+          <label>Search</label>
           <input
             type="text"
-            placeholder="Search items..."
+            placeholder="Customer name, phone, table..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-
-        <select value={filterRestaurant} onChange={(e) => setFilterRestaurant(e.target.value)}>
-          <option value="all">All Restaurants</option>
-          {restaurants.map(r => (
-            <option key={getRestField(r, 'restId')} value={getRestField(r, 'restId')}>
-              {r.name}
-            </option>
-          ))}
-        </select>
-
-        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-          <option value="all">All Categories</option>
-          {availableCategories.map(cat => (
-            <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>
-          ))}
-        </select>
-
-        <select value={filterFoodType} onChange={(e) => setFilterFoodType(e.target.value)}>
-          <option value="all">All Types</option>
-          {foodTypes.map(ft => (
-            <option key={ft.value} value={ft.value}>{ft.icon} {ft.label}</option>
-          ))}
-        </select>
-
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="all">All Status</option>
-          <option value="available">Available</option>
-          <option value="unavailable">Unavailable</option>
-        </select>
       </div>
 
-      {/* Items Grid */}
-      <main className="mm-main">
-        <div className="mm-results-info">
-          Showing {filteredItems.length} of {items.length} items
-        </div>
-
-        {filteredItems.length === 0 ? (
-          <div className="mm-empty">
-            <span>🍽️</span>
-            <h3>No Items Found</h3>
-            <button className="mm-btn-primary" onClick={() => setShowItemModal(true)}>Add Item</button>
+      <div className="orders-container">
+        {filteredOrders.length === 0 ? (
+          <div className="empty-state">
+            <span>📋</span>
+            <p>No orders found</p>
           </div>
         ) : (
-          <div className="mm-items-grid">
-            {filteredItems.map(item => {
-              const itemId = getItemField(item, 'itemId');
-              const productName = getItemField(item, 'productName');
-              const productDescription = getItemField(item, 'productDescription');
-              const restaurantId = getItemField(item, 'restaurantId');
-              const imageUrl = getItemField(item, 'imageUrl');
-              const itemCategory = getItemField(item, 'itemCategory');
-              const foodType = getItemField(item, 'foodType');
-              const itemStatus = getItemField(item, 'itemStatus');
-              const itemPrices = getItemPrices(itemId);
-              const foodTypeInfo = getFoodTypeInfo(foodType);
-
-              return (
-                <div key={itemId} className={`mm-item-card ${itemStatus !== 'available' ? 'unavailable' : ''}`}>
-                  {/* Food Type Badge */}
-                  <div className={`mm-food-type-badge ${foodType || ''}`}>
-                    {foodTypeInfo.icon}
-                  </div>
-
-                  {/* Item Image */}
-                  <div className="mm-item-image">
-                    {imageUrl ? (
-                      <img 
-                        src={getImageUrl(imageUrl)} 
-                        alt={productName}
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <div className="mm-item-placeholder">
-                        {getCategoryIcon(itemCategory)}
-                      </div>
-                    )}
-                    {itemStatus !== 'available' && (
-                      <div className="mm-status-overlay">{itemStatus}</div>
-                    )}
-                  </div>
-
-                  {/* Item Content */}
-                  <div className="mm-item-content">
-                    <h3>{productName}</h3>
-                    {productDescription && <p className="mm-item-desc">{productDescription}</p>}
-                    
-                    <div className="mm-item-meta">
-                      <span>🏪 {getRestaurantName(restaurantId)}</span>
-                      {itemCategory && <span>{getCategoryIcon(itemCategory)} {itemCategory}</span>}
-                    </div>
-
-                    {/* Prices */}
-                    <div className="mm-item-prices">
-                      <div className="mm-prices-header">
-                        <span>💰 Prices</span>
-                        <button className="mm-btn-add-price" onClick={() => handleAddPrice(item)}>
-                          + Add
-                        </button>
-                      </div>
-                      {itemPrices.length > 0 ? (
-                        <div className="mm-prices-list">
-                          {itemPrices.map(price => {
-                            const priceId = getPriceField(price, 'priceId');
-                            const portionSize = getPriceField(price, 'portionSize');
-                            return (
-                              <div key={priceId} className="mm-price-tag">
-                                <div className="mm-price-info">
-                                  <span className="mm-price-portion">{portionSize}</span>
-                                  <span className="mm-price-amount">₹{price.price}</span>
-                                </div>
-                                <div className="mm-price-actions">
-                                  <button onClick={() => handleEditPrice(price, item)}>✏️</button>
-                                  <button onClick={() => handleDeletePrice(priceId)}>🗑️</button>
-                                </div>
-                              </div>
-                            );
-                          })}
+          <div className="orders-table-wrapper">
+            <table className="orders-table">
+              <thead>
+                <tr>
+                  <th>Order Info</th>
+                  <th>Restaurant</th>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredOrders.map(order => {
+                  const statusInfo = getStatusInfo(order.orderStatus);
+                  return (
+                    <tr key={order.orderId}>
+                      <td>
+                        <div className="order-info">
+                          <div className="order-customer">
+                            <strong>{order.createdBy || 'Guest'}</strong>
+                            {order.customerPhone && (
+                              <span className="order-phone">{order.customerPhone}</span>
+                            )}
+                          </div>
+                          <div className="order-meta">
+                            <span className="table-badge">Table {order.tableNumber}</span>
+                            <span className="order-time">{formatDate(order.createdAt)}</span>
+                          </div>
                         </div>
-                      ) : (
-                        <p className="mm-no-prices">No prices set</p>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="mm-item-actions">
-                      <button className="mm-btn-edit" onClick={() => handleEditItem(item)}>✏️ Edit</button>
-                      <button className="mm-btn-delete" onClick={() => handleDeleteItem(itemId)}>🗑️</button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                      <td>
+                        <span className="restaurant-name">
+                          {getRestaurantName(order.restaurantId)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="item-info">
+                          <span className="item-name">{getItemName(order.productId)}</span>
+                          {order.portionSize && (
+                            <span className="portion-size">{order.portionSize}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="quantity">{order.quantity || 1}</span>
+                      </td>
+                      <td>
+                        <span className="price">₹{order.price || 0}</span>
+                      </td>
+                      <td>
+                        <select
+                          className="status-select"
+                          value={order.orderStatus || 'pending'}
+                          onChange={(e) => handleStatusChange(order.orderId, e.target.value)}
+                          style={{ 
+                            backgroundColor: statusInfo.bg, 
+                            color: statusInfo.color,
+                            borderColor: statusInfo.color
+                          }}
+                        >
+                          {ORDER_STATUSES.map(s => (
+                            <option key={s.value} value={s.value}>{s.label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <div className="action-buttons">
+                          <button 
+                            className="btn-action btn-delete"
+                            onClick={() => handleDeleteOrder(order.orderId)}
+                            title="Delete order"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </main>
+      </div>
 
-      {/* Item Modal */}
-      {showItemModal && (
-        <div className="mm-modal-overlay" onClick={() => { setShowItemModal(false); resetItemForm(); }}>
-          <div className="mm-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="mm-modal-header">
-              <h2>{editingItem ? '✏️ Edit Item' : '➕ Add Item'}</h2>
-              <button className="mm-modal-close" onClick={() => { setShowItemModal(false); resetItemForm(); }}>✕</button>
-            </div>
-
-            <form onSubmit={handleItemSubmit} className="mm-modal-form">
-              {/* Image Upload */}
-              <div className="mm-form-section">
-                <h3>📷 Image</h3>
-                <div className="mm-image-upload">
-                  {imagePreview ? (
-                    <div className="mm-image-preview">
-                      <img src={imagePreview} alt="Preview" />
-                      <button type="button" className="mm-remove-image" onClick={() => { 
-                        setImageFile(null); 
-                        setImagePreview(null);
-                        setItemForm({...itemForm, imageUrl: ''});
-                      }}>✕</button>
+      {filteredOrders.some(o => o.orderNotes || o.itemNotes) && (
+        <div className="notes-section">
+          <h3>Orders with Notes</h3>
+          <div className="notes-grid">
+            {filteredOrders
+              .filter(o => o.orderNotes || o.itemNotes)
+              .map(order => (
+                <div key={order.orderId} className="note-card">
+                  <div className="note-header">
+                    <span className="note-table">Table {order.tableNumber}</span>
+                    <span className="note-customer">{order.createdBy}</span>
+                  </div>
+                  {order.orderNotes && (
+                    <div className="note-content">
+                      <strong>Order Note:</strong> {order.orderNotes}
                     </div>
-                  ) : (
-                    <label className="mm-upload-area">
-                      <input type="file" accept="image/*" onChange={handleImageChange} hidden />
-                      <span>📷</span>
-                      <span>Click to upload</span>
-                    </label>
+                  )}
+                  {order.itemNotes && (
+                    <div className="note-content">
+                      <strong>Item Note:</strong> {order.itemNotes}
+                    </div>
                   )}
                 </div>
-              </div>
-
-              {/* Basic Info */}
-              <div className="mm-form-section">
-                <h3>📝 Basic Info</h3>
-                <div className="mm-form-row">
-                  <div className="mm-form-group">
-                    <label>Product ID *</label>
-                    <input
-                      type="text"
-                      value={itemForm.productId}
-                      onChange={(e) => setItemForm({ ...itemForm, productId: e.target.value })}
-                      placeholder="PROD001"
-                      required
-                    />
-                  </div>
-                  <div className="mm-form-group">
-                    <label>Restaurant *</label>
-                    <select
-                      value={itemForm.restaurantId}
-                      onChange={(e) => setItemForm({ ...itemForm, restaurantId: e.target.value })}
-                      required
-                    >
-                      <option value="">Select</option>
-                      {restaurants.map(r => (
-                        <option key={getRestField(r, 'restId')} value={getRestField(r, 'restId')}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mm-form-group">
-                  <label>Product Name *</label>
-                  <input
-                    type="text"
-                    value={itemForm.productName}
-                    onChange={(e) => setItemForm({ ...itemForm, productName: e.target.value })}
-                    placeholder="Enter name"
-                    required
-                  />
-                </div>
-
-                <div className="mm-form-group">
-                  <label>Description</label>
-                  <textarea
-                    value={itemForm.productDescription}
-                    onChange={(e) => setItemForm({ ...itemForm, productDescription: e.target.value })}
-                    placeholder="Optional description"
-                    rows={2}
-                  />
-                </div>
-              </div>
-
-              {/* Category & Type */}
-              <div className="mm-form-section">
-                <h3>🏷️ Category & Type</h3>
-                <div className="mm-form-row">
-                  <div className="mm-form-group">
-                    <label>Category *</label>
-                    <select
-                      value={itemForm.itemCategory}
-                      onChange={(e) => setItemForm({ ...itemForm, itemCategory: e.target.value })}
-                      required
-                    >
-                      <option value="">Select</option>
-                      {categories.map(cat => (
-                        <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mm-form-group">
-                    <label>Status</label>
-                    <select
-                      value={itemForm.itemStatus}
-                      onChange={(e) => setItemForm({ ...itemForm, itemStatus: e.target.value })}
-                    >
-                      <option value="available">Available</option>
-                      <option value="unavailable">Unavailable</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mm-form-group">
-                  <label>Food Type *</label>
-                  <div className="mm-food-type-options">
-                    {foodTypes.map(ft => (
-                      <label key={ft.value} className={`mm-food-type-option ${itemForm.foodType === ft.value ? 'selected' : ''}`}>
-                        <input
-                          type="radio"
-                          name="foodType"
-                          value={ft.value}
-                          checked={itemForm.foodType === ft.value}
-                          onChange={(e) => setItemForm({ ...itemForm, foodType: e.target.value })}
-                        />
-                        <span>{ft.icon}</span>
-                        <span>{ft.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mm-modal-footer">
-                <button type="button" className="mm-btn-secondary" onClick={() => { setShowItemModal(false); resetItemForm(); }}>
-                  Cancel
-                </button>
-                <button type="submit" className="mm-btn-primary" disabled={uploadingImage}>
-                  {uploadingImage ? '⏳ Uploading...' : editingItem ? '💾 Update' : '➕ Create'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Price Modal */}
-      {showPriceModal && (
-        <div className="mm-modal-overlay" onClick={() => { setShowPriceModal(false); resetPriceForm(); }}>
-          <div className="mm-modal mm-modal-small" onClick={(e) => e.stopPropagation()}>
-            <div className="mm-modal-header">
-              <h2>{editingPrice ? '✏️ Edit Price' : '💰 Add Price'}</h2>
-              <button className="mm-modal-close" onClick={() => { setShowPriceModal(false); resetPriceForm(); }}>✕</button>
-            </div>
-
-            <form onSubmit={handlePriceSubmit} className="mm-modal-form">
-              <div className="mm-price-item-info">
-                <span>{getCategoryIcon(getItemField(selectedItemForPrice, 'itemCategory'))}</span>
-                <div>
-                  <strong>{getItemField(selectedItemForPrice, 'productName')}</strong>
-                  <span>{getRestaurantName(getItemField(selectedItemForPrice, 'restaurantId'))}</span>
-                </div>
-              </div>
-
-              <div className="mm-form-group">
-                <label>Portion Size *</label>
-                <select
-                  value={priceForm.portionSize}
-                  onChange={(e) => setPriceForm({ ...priceForm, portionSize: e.target.value })}
-                  required
-                >
-                  {portionSizes.map(size => (
-                    <option key={size} value={size}>{size.charAt(0).toUpperCase() + size.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mm-form-group">
-                <label>Price (₹) *</label>
-                <div className="mm-price-input">
-                  <span>₹</span>
-                  <input
-                    type="number"
-                    value={priceForm.price}
-                    onChange={(e) => setPriceForm({ ...priceForm, price: e.target.value })}
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="mm-modal-footer">
-                <button type="button" className="mm-btn-secondary" onClick={() => { setShowPriceModal(false); resetPriceForm(); }}>
-                  Cancel
-                </button>
-                <button type="submit" className="mm-btn-primary">
-                  {editingPrice ? '💾 Update' : '➕ Add'}
-                </button>
-              </div>
-            </form>
+              ))}
           </div>
         </div>
       )}
@@ -795,4 +354,4 @@ const MenuManagement = () => {
   );
 };
 
-export default MenuManagement;
+export default OrderManagement;
