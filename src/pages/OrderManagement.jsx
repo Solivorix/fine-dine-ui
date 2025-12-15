@@ -87,7 +87,8 @@ const OrderManagement = () => {
   };
 
   const getStatusInfo = (status) => {
-    return ORDER_STATUSES.find(s => s.value === status) || ORDER_STATUSES[0];
+    const effectiveStatus = status || 'pending';
+    return ORDER_STATUSES.find(s => s.value === effectiveStatus) || ORDER_STATUSES[0];
   };
 
   const formatDate = (dateStr) => {
@@ -106,7 +107,9 @@ const OrderManagement = () => {
     const matchesRestaurant = selectedRestaurant === 'all' || 
       order.restaurantId === selectedRestaurant;
     const matchesStatus = selectedStatus === 'all' || 
-      order.orderStatus === selectedStatus;
+      (selectedStatus === 'pending' 
+        ? (!order.orderStatus || order.orderStatus === 'pending') 
+        : order.orderStatus === selectedStatus);
     const matchesSearch = searchTerm === '' || 
       order.createdBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerPhone?.includes(searchTerm) ||
@@ -116,10 +119,13 @@ const OrderManagement = () => {
 
   const stats = {
     total: orders.length,
-    pending: orders.filter(o => o.orderStatus === 'pending').length,
+    pending: orders.filter(o => !o.orderStatus || o.orderStatus === 'pending').length,
+    confirmed: orders.filter(o => o.orderStatus === 'confirmed').length,
     preparing: orders.filter(o => o.orderStatus === 'preparing').length,
     ready: orders.filter(o => o.orderStatus === 'ready').length,
-    completed: orders.filter(o => o.orderStatus === 'completed').length
+    served: orders.filter(o => o.orderStatus === 'served').length,
+    completed: orders.filter(o => o.orderStatus === 'completed').length,
+    cancelled: orders.filter(o => o.orderStatus === 'cancelled').length
   };
 
   const handleBack = () => navigate('/admin');
@@ -175,6 +181,13 @@ const OrderManagement = () => {
             <span className="stat-label">Pending</span>
           </div>
         </div>
+        <div className="stat-card confirmed">
+          <div className="stat-icon">✓</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.confirmed}</span>
+            <span className="stat-label">Confirmed</span>
+          </div>
+        </div>
         <div className="stat-card preparing">
           <div className="stat-icon">👨‍🍳</div>
           <div className="stat-info">
@@ -183,10 +196,31 @@ const OrderManagement = () => {
           </div>
         </div>
         <div className="stat-card ready">
-          <div className="stat-icon">✅</div>
+          <div className="stat-icon">🍽️</div>
           <div className="stat-info">
             <span className="stat-value">{stats.ready}</span>
             <span className="stat-label">Ready</span>
+          </div>
+        </div>
+        <div className="stat-card served">
+          <div className="stat-icon">🚚</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.served}</span>
+            <span className="stat-label">Served</span>
+          </div>
+        </div>
+        <div className="stat-card completed">
+          <div className="stat-icon">✅</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.completed}</span>
+            <span className="stat-label">Completed</span>
+          </div>
+        </div>
+        <div className="stat-card cancelled">
+          <div className="stat-icon">❌</div>
+          <div className="stat-info">
+            <span className="stat-value">{stats.cancelled}</span>
+            <span className="stat-label">Cancelled</span>
           </div>
         </div>
       </div>
@@ -245,6 +279,7 @@ const OrderManagement = () => {
                   <th>Item</th>
                   <th>Qty</th>
                   <th>Price</th>
+                  <th>Notes</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -252,6 +287,7 @@ const OrderManagement = () => {
               <tbody>
                 {filteredOrders.map(order => {
                   const statusInfo = getStatusInfo(order.orderStatus);
+                  const hasNotes = order.orderNotes || order.itemNotes;
                   return (
                     <tr key={order.orderId}>
                       <td>
@@ -288,6 +324,26 @@ const OrderManagement = () => {
                         <span className="price">₹{order.price || 0}</span>
                       </td>
                       <td>
+                        {hasNotes ? (
+                          <div className="inline-notes">
+                            {order.orderNotes && (
+                              <div className="inline-note">
+                                <span className="note-label">📝</span>
+                                <span className="note-text">{order.orderNotes}</span>
+                              </div>
+                            )}
+                            {order.itemNotes && (
+                              <div className="inline-note">
+                                <span className="note-label">🍴</span>
+                                <span className="note-text">{order.itemNotes}</span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="no-notes">—</span>
+                        )}
+                      </td>
+                      <td>
                         <select
                           className="status-select"
                           value={order.orderStatus || 'pending'}
@@ -322,34 +378,6 @@ const OrderManagement = () => {
           </div>
         )}
       </div>
-
-      {filteredOrders.some(o => o.orderNotes || o.itemNotes) && (
-        <div className="notes-section">
-          <h3>Orders with Notes</h3>
-          <div className="notes-grid">
-            {filteredOrders
-              .filter(o => o.orderNotes || o.itemNotes)
-              .map(order => (
-                <div key={order.orderId} className="note-card">
-                  <div className="note-header">
-                    <span className="note-table">Table {order.tableNumber}</span>
-                    <span className="note-customer">{order.createdBy}</span>
-                  </div>
-                  {order.orderNotes && (
-                    <div className="note-content">
-                      <strong>Order Note:</strong> {order.orderNotes}
-                    </div>
-                  )}
-                  {order.itemNotes && (
-                    <div className="note-content">
-                      <strong>Item Note:</strong> {order.itemNotes}
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
