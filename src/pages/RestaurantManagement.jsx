@@ -17,7 +17,8 @@ const RestaurantManagement = () => {
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
-  // Form uses field names to match backend RestaurantDto
+  // Form uses camelCase internally (gstNo) but converts to snake_case (gst_no) for API calls
+  // This matches the backend's @JsonProperty("gst_no") annotation
   const [restaurantForm, setRestaurantForm] = useState({
     name: '',
     gstNo: '',
@@ -133,7 +134,19 @@ const RestaurantManagement = () => {
     }
 
     try {
-      await restaurantAPI.create(restaurantForm);
+      // Send data with gst_no (underscore) to match backend @JsonProperty annotation
+      const payload = {
+        name: restaurantForm.name,
+        gst_no: restaurantForm.gstNo,  // Convert gstNo to gst_no for backend
+        address: restaurantForm.address,
+        primaryEmailId: restaurantForm.primaryEmailId,
+        primaryContactNumber: restaurantForm.primaryContactNumber,
+        imageUrl: restaurantForm.imageUrl,
+        createdBy: restaurantForm.createdBy
+      };
+      
+      console.log('Creating restaurant with payload:', payload);
+      await restaurantAPI.create(payload);
       setShowAddModal(false);
       resetForm();
       fetchRestaurants();
@@ -153,10 +166,17 @@ const RestaurantManagement = () => {
 
     try {
       const updateData = { 
-        ...restaurantForm, 
+        name: restaurantForm.name,
+        gst_no: restaurantForm.gstNo,  // Convert gstNo to gst_no for backend
+        address: restaurantForm.address,
+        primaryEmailId: restaurantForm.primaryEmailId,
+        primaryContactNumber: restaurantForm.primaryContactNumber,
+        imageUrl: restaurantForm.imageUrl,
         restId: restaurantId,
         modifiedBy: 'admin' 
       };
+      
+      console.log('Updating restaurant with payload:', updateData);
       await restaurantAPI.patch(restaurantId, updateData);
       setShowEditModal(false);
       setSelectedRestaurant(null);
@@ -194,9 +214,11 @@ const RestaurantManagement = () => {
 
   const openEditModal = (restaurant) => {
     setSelectedRestaurant(restaurant);
+    // Handle both gst_no and gstNo from backend
+    const gstValue = restaurant.gstNo || restaurant.gst_no || '';
     setRestaurantForm({
       name: restaurant.name || '',
-      gstNo: restaurant.gst_no || restaurant.gstNo || '',
+      gstNo: gstValue,
       address: restaurant.address || '',
       primaryEmailId: restaurant.primaryEmailId || '',
       primaryContactNumber: restaurant.primaryContactNumber || '',
@@ -313,7 +335,7 @@ const RestaurantManagement = () => {
             const imageUrl = restaurant.imageUrl;
             const primaryContactNumber = restaurant.primaryContactNumber;
             const primaryEmailId = restaurant.primaryEmailId;
-            const gstNo = restaurant.gst_no || restaurant.gstNo;
+            const gstNo = restaurant.gstNo || restaurant.gst_no;
             
             return (
             <div key={id} className="restaurant-card">
