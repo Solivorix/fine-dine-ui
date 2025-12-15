@@ -243,6 +243,11 @@ const TableBooking = () => {
 
   const getMyOrdersTotal = () => myOrders.reduce((sum, o) => sum + (o.price * o.quantity), 0);
 
+  const getRestaurantLogo = () => {
+    if (restaurant?.logoUrl) return getImageUrl(restaurant.logoUrl);
+    return null;
+  };
+
   // Loading
   if (restaurantLoading) {
     return (
@@ -274,11 +279,14 @@ const TableBooking = () => {
       <div className="app welcome-app">
         <div className="welcome-screen">
           <div className="welcome-bg-pattern"></div>
-          
           <div className="welcome-content">
             <div className="welcome-hero">
-              <div className="hero-icon">
-                <span>🍽️</span>
+              <div className="hero-logo">
+                {getRestaurantLogo() ? (
+                  <img src={getRestaurantLogo()} alt={restaurant?.name} />
+                ) : (
+                  <span>🍽️</span>
+                )}
               </div>
               <h1>{restaurant?.name}</h1>
               <p className="hero-subtitle">Delicious food, just a tap away</p>
@@ -293,30 +301,15 @@ const TableBooking = () => {
                 <h2>Get Started</h2>
                 <p>Enter your details to explore our menu</p>
               </div>
-
               <form onSubmit={handleStartOrder}>
                 <div className="input-field">
                   <div className="input-icon">👤</div>
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Your name"
-                    required
-                  />
+                  <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Your name" required />
                 </div>
-
                 <div className="input-field">
                   <div className="input-icon">📱</div>
-                  <input
-                    type="tel"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="Phone number"
-                    required
-                  />
+                  <input type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Phone number" required />
                 </div>
-
                 <button type="submit" className="btn-hero">
                   <span>Explore Menu</span>
                   <span className="btn-icon">→</span>
@@ -325,18 +318,9 @@ const TableBooking = () => {
             </div>
 
             <div className="welcome-features">
-              <div className="feature">
-                <span>📖</span>
-                <span>Browse Menu</span>
-              </div>
-              <div className="feature">
-                <span>🛒</span>
-                <span>Add to Cart</span>
-              </div>
-              <div className="feature">
-                <span>✨</span>
-                <span>Order Instantly</span>
-              </div>
+              <div className="feature"><span>📖</span><span>Browse Menu</span></div>
+              <div className="feature"><span>🛒</span><span>Add to Cart</span></div>
+              <div className="feature"><span>✨</span><span>Order Instantly</span></div>
             </div>
           </div>
         </div>
@@ -344,7 +328,7 @@ const TableBooking = () => {
     );
   }
 
-  // Success Screen - Beautiful Order Summary
+  // Success Screen
   if (currentScreen === 'success') {
     return (
       <div className="app">
@@ -365,8 +349,11 @@ const TableBooking = () => {
           <div className="success-card">
             <div className="success-card-header">
               <div className="restaurant-info">
-                <h3>{restaurant?.name}</h3>
-                <span>Table {tableNumber}</span>
+                {getRestaurantLogo() && <img src={getRestaurantLogo()} alt="" className="success-logo" />}
+                <div>
+                  <h3>{restaurant?.name}</h3>
+                  <span>Table {tableNumber}</span>
+                </div>
               </div>
               <div className="order-time">
                 {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
@@ -374,14 +361,8 @@ const TableBooking = () => {
             </div>
 
             <div className="customer-info">
-              <div className="customer-detail">
-                <span className="detail-icon">👤</span>
-                <span>{customerName}</span>
-              </div>
-              <div className="customer-detail">
-                <span className="detail-icon">📱</span>
-                <span>{customerPhone}</span>
-              </div>
+              <div className="customer-detail"><span className="detail-icon">👤</span><span>{customerName}</span></div>
+              <div className="customer-detail"><span className="detail-icon">📱</span><span>{customerPhone}</span></div>
             </div>
 
             {myOrders.length > 0 && (
@@ -404,291 +385,228 @@ const TableBooking = () => {
                               <span>{order.quantity}</span>
                               <button onClick={() => handleModifyOrder(index, order.quantity + 1)}>+</button>
                             </div>
-                            <button className="btn-cancel-item" onClick={() => handleCancelOrder(index)}>
-                              Remove
-                            </button>
+                            <button className="btn-cancel-item" onClick={() => handleCancelOrder(index)}>Remove</button>
                           </div>
                         ) : (
                           <span className="qty-display">×{order.quantity}</span>
                         )}
                         <span className="ordered-item-price">₹{order.price * order.quantity}</span>
                       </div>
-                      {editable && timeLeft && (
-                        <div className="modify-timer">
-                          <span className="timer-icon">⏱</span>
-                          <span>{timeLeft} left to modify</span>
-                        </div>
-                      )}
-                      {!editable && (
-                        <div className="item-confirmed">
-                          <span>✓</span>
-                          <span>Being prepared</span>
-                        </div>
-                      )}
+                      {editable && timeLeft && <div className="modify-timer"><span className="timer-icon">⏱</span><span>{timeLeft} left to modify</span></div>}
+                      {!editable && <div className="item-confirmed"><span>✓</span><span>Being prepared</span></div>}
                     </div>
                   );
                 })}
-                
-                <div className="order-total">
-                  <span>Total Amount</span>
-                  <span>₹{getMyOrdersTotal()}</span>
-                </div>
+                <div className="order-total"><span>Total Amount</span><span>₹{getMyOrdersTotal()}</span></div>
               </div>
             )}
           </div>
 
           <button className="btn-order-more" onClick={() => setCurrentScreen('menu')}>
-            <span>🍴</span>
-            <span>Order More Items</span>
+            <span>🍴</span><span>Order More Items</span>
           </button>
         </div>
       </div>
     );
   }
 
-  // Menu Screen
+  // Menu Screen with Right Side Checkout
   return (
-    <div className="app">
+    <div className={`app ${showCheckout ? 'checkout-open' : ''}`}>
+      {/* Enhanced Header */}
       <header className="menu-header">
-        <div className="header-main">
-          <div className="header-left">
-            <h1>{restaurant?.name}</h1>
-            <div className="header-meta">
-              <span className="meta-item">🪑 Table {tableNumber}</span>
-              <span className="meta-item">👤 {customerName}</span>
-            </div>
-          </div>
-          <div className="header-right">
-            {myOrders.length > 0 && (
-              <button className="btn-orders" onClick={() => setShowMyOrders(true)}>
-                <span>📋</span>
-                <span className="orders-badge">{myOrders.length}</span>
-              </button>
+        <div className="header-brand">
+          <div className="brand-logo">
+            {getRestaurantLogo() ? (
+              <img src={getRestaurantLogo()} alt={restaurant?.name} />
+            ) : (
+              <span className="logo-placeholder">🍽️</span>
             )}
           </div>
+          <div className="brand-info">
+            <h1>{restaurant?.name}</h1>
+            <div className="brand-meta">
+              <span className="meta-badge"><span>🪑</span> Table {tableNumber}</span>
+              <span className="meta-divider">•</span>
+              <span className="meta-badge"><span>👤</span> {customerName}</span>
+            </div>
+          </div>
         </div>
-
-        <div className="filter-section">
-          <div className="food-type-filters">
-            {foodTypes.map(ft => (
-              <button
-                key={ft.value}
-                className={`filter-pill ${ft.class || ''} ${selectedFoodType === ft.value ? 'active' : ''}`}
-                onClick={() => setSelectedFoodType(ft.value)}
-              >
-                {ft.label}
-              </button>
-            ))}
-          </div>
-          <div className="category-filters">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                className={`category-pill ${selectedCategory === cat ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(cat)}
-              >
-                {cat === 'all' ? '🍴 All' : `${getCategoryIcon(cat)} ${cat}`}
-              </button>
-            ))}
-          </div>
+        
+        <div className="header-actions">
+          {myOrders.length > 0 && (
+            <button className="btn-header-action" onClick={() => setShowMyOrders(true)}>
+              <span>📋</span>
+              <span className="action-label">My Orders</span>
+              <span className="action-badge">{myOrders.length}</span>
+            </button>
+          )}
+          <button className={`btn-header-action btn-cart ${cart.length > 0 ? 'has-items' : ''}`} onClick={() => setShowCheckout(true)}>
+            <span>🛒</span>
+            <span className="action-label">Cart</span>
+            {cart.length > 0 && <span className="action-badge">{getCartItemCount()}</span>}
+          </button>
         </div>
       </header>
 
-      <main className="menu-main">
-        {loading ? (
-          <div className="loading-state">
-            <div className="loading-spinner"></div>
-            <p>Loading delicious items...</p>
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="empty-state">
-            <span>🍽️</span>
-            <p>No items found</p>
-          </div>
-        ) : (
-          <div className="menu-grid">
-            {filteredItems.map((item) => {
-              const itemId = getItemField(item, 'itemId');
-              const productName = getItemField(item, 'productName');
-              const productDescription = getItemField(item, 'productDescription');
-              const imageUrl = getItemField(item, 'imageUrl');
-              const foodType = getItemField(item, 'foodType');
-              const foodTypeInfo = getFoodTypeInfo(foodType);
-              const itemPrices = getItemPrices(itemId);
-              const cartItem = cart.find(c => c.itemId === itemId);
-              const minPrice = itemPrices.length > 0 ? Math.min(...itemPrices.map(p => p.price)) : null;
-
-              return (
-                <div key={itemId} className="menu-card">
-                  <div className="card-image" onClick={() => setShowItemDetail(item)}>
-                    {imageUrl ? (
-                      <img src={getImageUrl(imageUrl)} alt={productName} />
-                    ) : (
-                      <div className="card-image-placeholder">
-                        {getCategoryIcon(getItemField(item, 'itemCategory'))}
-                      </div>
-                    )}
-                    <div className={`food-badge ${foodTypeInfo.class}`}></div>
-                  </div>
-                  
-                  <div className="card-content">
-                    <h3 onClick={() => setShowItemDetail(item)}>{productName}</h3>
-                    {productDescription && <p className="card-desc">{productDescription}</p>}
-                    
-                    <div className="card-footer">
-                      {minPrice ? (
-                        <span className="card-price">₹{minPrice}{itemPrices.length > 1 ? '+' : ''}</span>
-                      ) : (
-                        <span className="card-price-na">N/A</span>
-                      )}
-                      
-                      {itemPrices.length > 0 && (
-                        cartItem ? (
-                          <div className="qty-control">
-                            <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), -1)}>−</button>
-                            <span>{cartItem.quantity}</span>
-                            <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), 1)}>+</button>
-                          </div>
-                        ) : itemPrices.length === 1 ? (
-                          <button className="btn-add" onClick={() => addToCart(item, itemPrices[0])}>
-                            <span>ADD</span>
-                            <span className="add-plus">+</span>
-                          </button>
-                        ) : (
-                          <button className="btn-add" onClick={() => setShowItemDetail(item)}>
-                            <span>ADD</span>
-                            <span className="add-plus">+</span>
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </main>
-
-      {/* Floating Cart Button */}
-      {cart.length > 0 && (
-        <div className="cart-float" onClick={() => setShowCheckout(true)}>
-          <div className="cart-float-left">
-            <span className="cart-count">{getCartItemCount()} {getCartItemCount() === 1 ? 'item' : 'items'}</span>
-            <span className="cart-total">₹{getCartTotal()}</span>
-          </div>
-          <div className="cart-float-right">
-            <span>View Cart</span>
-            <span className="cart-arrow">🛒</span>
-          </div>
+      {/* Filters */}
+      <div className="filter-section">
+        <div className="food-type-filters">
+          {foodTypes.map(ft => (
+            <button key={ft.value} className={`filter-pill ${ft.class || ''} ${selectedFoodType === ft.value ? 'active' : ''}`} onClick={() => setSelectedFoodType(ft.value)}>
+              {ft.label}
+            </button>
+          ))}
         </div>
-      )}
+        <div className="category-filters">
+          {categories.map(cat => (
+            <button key={cat} className={`category-pill ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
+              {cat === 'all' ? '🍴 All' : `${getCategoryIcon(cat)} ${cat}`}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Checkout Popup Modal */}
-      {showCheckout && (
-        <div className="modal-overlay" onClick={() => setShowCheckout(false)}>
-          <div className="checkout-modal" onClick={e => e.stopPropagation()}>
-            <div className="checkout-header">
-              <h2>Your Cart</h2>
-              <button className="btn-close" onClick={() => setShowCheckout(false)}>×</button>
-            </div>
+      {/* Main Layout */}
+      <div className="menu-layout">
+        <main className="menu-main">
+          {loading ? (
+            <div className="loading-state"><div className="loading-spinner"></div><p>Loading delicious items...</p></div>
+          ) : filteredItems.length === 0 ? (
+            <div className="empty-state"><span>🍽️</span><p>No items found</p></div>
+          ) : (
+            <div className="menu-grid">
+              {filteredItems.map((item) => {
+                const itemId = getItemField(item, 'itemId');
+                const productName = getItemField(item, 'productName');
+                const productDescription = getItemField(item, 'productDescription');
+                const imageUrl = getItemField(item, 'imageUrl');
+                const foodType = getItemField(item, 'foodType');
+                const foodTypeInfo = getFoodTypeInfo(foodType);
+                const itemPrices = getItemPrices(itemId);
+                const cartItem = cart.find(c => c.itemId === itemId);
+                const minPrice = itemPrices.length > 0 ? Math.min(...itemPrices.map(p => p.price)) : null;
 
-            <div className="checkout-body">
-              <div className="checkout-info">
-                <div className="checkout-info-item">
-                  <span>🏪</span>
-                  <div>
-                    <label>Restaurant</label>
-                    <strong>{restaurant?.name}</strong>
-                  </div>
-                </div>
-                <div className="checkout-info-item">
-                  <span>🪑</span>
-                  <div>
-                    <label>Table</label>
-                    <strong>{tableNumber}</strong>
-                  </div>
-                </div>
-                <div className="checkout-info-item">
-                  <span>👤</span>
-                  <div>
-                    <label>Name</label>
-                    <strong>{customerName}</strong>
-                  </div>
-                </div>
-                <div className="checkout-info-item">
-                  <span>📱</span>
-                  <div>
-                    <label>Phone</label>
-                    <strong>{customerPhone}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="checkout-items">
-                <h3>Items ({getCartItemCount()})</h3>
-                {cart.map((item, index) => (
-                  <div key={index} className="checkout-item">
-                    <div className="checkout-item-top">
-                      <div className="checkout-item-details">
-                        <h4>{item.name}</h4>
-                        {item.portion && <span className="item-portion">{item.portion}</span>}
-                      </div>
-                      <button className="btn-remove-item" onClick={() => removeFromCart(index)}>×</button>
+                return (
+                  <div key={itemId} className="menu-card">
+                    <div className="card-image" onClick={() => setShowItemDetail(item)}>
+                      {imageUrl ? <img src={getImageUrl(imageUrl)} alt={productName} /> : <div className="card-image-placeholder">{getCategoryIcon(getItemField(item, 'itemCategory'))}</div>}
+                      <div className={`food-badge ${foodTypeInfo.class}`}></div>
                     </div>
-                    <div className="checkout-item-bottom">
-                      <div className="qty-control">
-                        <button onClick={() => updateCartQuantity(index, -1)}>−</button>
-                        <span>{item.quantity}</span>
-                        <button onClick={() => updateCartQuantity(index, 1)}>+</button>
+                    <div className="card-content">
+                      <h3 onClick={() => setShowItemDetail(item)}>{productName}</h3>
+                      {productDescription && <p className="card-desc">{productDescription}</p>}
+                      <div className="card-footer">
+                        {minPrice ? <span className="card-price">₹{minPrice}{itemPrices.length > 1 ? '+' : ''}</span> : <span className="card-price-na">N/A</span>}
+                        {itemPrices.length > 0 && (
+                          cartItem ? (
+                            <div className="qty-control">
+                              <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), -1)}>−</button>
+                              <span>{cartItem.quantity}</span>
+                              <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), 1)}>+</button>
+                            </div>
+                          ) : (
+                            <button className="btn-add" onClick={() => itemPrices.length === 1 ? addToCart(item, itemPrices[0]) : setShowItemDetail(item)}>
+                              <span>ADD</span><span className="add-plus">+</span>
+                            </button>
+                          )
+                        )}
                       </div>
-                      <span className="checkout-item-price">₹{item.price * item.quantity}</span>
                     </div>
-                    <input
-                      className="item-notes-input"
-                      placeholder="Add cooking instructions..."
-                      value={item.itemNotes || ''}
-                      onChange={(e) => updateCartItemNotes(index, e.target.value)}
-                    />
                   </div>
-                ))}
-              </div>
-
-              <div className="checkout-notes">
-                <h3>Special Instructions</h3>
-                <textarea
-                  placeholder="Any allergies or special requests for the restaurant..."
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              <div className="checkout-summary">
-                <div className="summary-row">
-                  <span>Subtotal</span>
-                  <span>₹{getCartTotal()}</span>
-                </div>
-                <div className="summary-row total">
-                  <span>Total</span>
-                  <span>₹{getCartTotal()}</span>
-                </div>
-              </div>
+                );
+              })}
             </div>
+          )}
+        </main>
 
-            <div className="checkout-footer">
-              <button className="btn-place-order" onClick={handlePlaceOrder} disabled={loading || cart.length === 0}>
-                {loading ? (
-                  <span>Placing Order...</span>
-                ) : (
-                  <>
-                    <span>Place Order</span>
-                    <span className="order-total">₹{getCartTotal()}</span>
-                  </>
-                )}
-              </button>
-            </div>
+        {/* Right Side Checkout Panel */}
+        <aside className={`checkout-sidebar ${showCheckout ? 'open' : ''}`}>
+          <div className="sidebar-header">
+            <h2>🛒 Your Cart</h2>
+            <button className="btn-close-sidebar" onClick={() => setShowCheckout(false)}>×</button>
           </div>
+
+          {cart.length === 0 ? (
+            <div className="sidebar-empty">
+              <span>🛒</span>
+              <p>Your cart is empty</p>
+              <span className="empty-hint">Add items from the menu</span>
+            </div>
+          ) : (
+            <>
+              <div className="sidebar-body">
+                <div className="sidebar-info">
+                  <div className="info-item">
+                    <span className="info-icon">🏪</span>
+                    <div><label>Restaurant</label><strong>{restaurant?.name}</strong></div>
+                  </div>
+                  <div className="info-row">
+                    <div className="info-item small">
+                      <span className="info-icon">🪑</span>
+                      <div><label>Table</label><strong>{tableNumber}</strong></div>
+                    </div>
+                    <div className="info-item small">
+                      <span className="info-icon">👤</span>
+                      <div><label>Name</label><strong>{customerName}</strong></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sidebar-items">
+                  <h3>Items ({getCartItemCount()})</h3>
+                  {cart.map((item, index) => (
+                    <div key={index} className="sidebar-item">
+                      <div className="sidebar-item-header">
+                        <div className="sidebar-item-info">
+                          <h4>{item.name}</h4>
+                          {item.portion && <span className="item-portion">{item.portion}</span>}
+                        </div>
+                        <button className="btn-remove" onClick={() => removeFromCart(index)}>×</button>
+                      </div>
+                      <div className="sidebar-item-footer">
+                        <div className="qty-control qty-sm">
+                          <button onClick={() => updateCartQuantity(index, -1)}>−</button>
+                          <span>{item.quantity}</span>
+                          <button onClick={() => updateCartQuantity(index, 1)}>+</button>
+                        </div>
+                        <span className="sidebar-item-price">₹{item.price * item.quantity}</span>
+                      </div>
+                      <input className="item-note-input" placeholder="Special instructions..." value={item.itemNotes || ''} onChange={(e) => updateCartItemNotes(index, e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="sidebar-notes">
+                  <h3>Special Instructions</h3>
+                  <textarea placeholder="Allergies, dietary requirements..." value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} rows={2} />
+                </div>
+              </div>
+
+              <div className="sidebar-footer">
+                <div className="sidebar-summary">
+                  <div className="summary-row"><span>Subtotal</span><span>₹{getCartTotal()}</span></div>
+                  <div className="summary-row total"><span>Total</span><span>₹{getCartTotal()}</span></div>
+                </div>
+                <button className="btn-place-order" onClick={handlePlaceOrder} disabled={loading}>
+                  {loading ? <span>Placing Order...</span> : <><span>Place Order</span><span className="order-amount">₹{getCartTotal()}</span></>}
+                </button>
+              </div>
+            </>
+          )}
+        </aside>
+
+        {showCheckout && <div className="sidebar-overlay" onClick={() => setShowCheckout(false)}></div>}
+      </div>
+
+      {/* Mobile Cart Button */}
+      {cart.length > 0 && !showCheckout && (
+        <div className="mobile-cart-btn" onClick={() => setShowCheckout(true)}>
+          <div className="mobile-cart-info">
+            <span className="mobile-cart-count">{getCartItemCount()} items</span>
+            <span className="mobile-cart-total">₹{getCartTotal()}</span>
+          </div>
+          <div className="mobile-cart-action"><span>View Cart</span><span>🛒</span></div>
         </div>
       )}
 
@@ -696,16 +614,10 @@ const TableBooking = () => {
       {showMyOrders && (
         <div className="modal-overlay" onClick={() => setShowMyOrders(false)}>
           <div className="orders-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>My Orders</h2>
-              <button className="btn-close" onClick={() => setShowMyOrders(false)}>×</button>
-            </div>
+            <div className="modal-header"><h2>My Orders</h2><button className="btn-close" onClick={() => setShowMyOrders(false)}>×</button></div>
             <div className="modal-body">
               {myOrders.length === 0 ? (
-                <div className="empty-orders">
-                  <span>📋</span>
-                  <p>No orders yet</p>
-                </div>
+                <div className="empty-orders"><span>📋</span><p>No orders yet</p></div>
               ) : (
                 <>
                   {myOrders.map((order, index) => {
@@ -714,19 +626,14 @@ const TableBooking = () => {
                     return (
                       <div key={index} className={`order-card ${!editable ? 'locked' : ''}`}>
                         <div className="order-card-main">
-                          <div className="order-card-info">
-                            <h4>{order.name}</h4>
-                            {order.portion && <span>{order.portion}</span>}
-                          </div>
+                          <div className="order-card-info"><h4>{order.name}</h4>{order.portion && <span>{order.portion}</span>}</div>
                           {editable ? (
                             <div className="qty-control qty-sm">
                               <button onClick={() => handleModifyOrder(index, order.quantity - 1)}>−</button>
                               <span>{order.quantity}</span>
                               <button onClick={() => handleModifyOrder(index, order.quantity + 1)}>+</button>
                             </div>
-                          ) : (
-                            <span className="qty-badge">×{order.quantity}</span>
-                          )}
+                          ) : <span className="qty-badge">×{order.quantity}</span>}
                           <span className="order-card-price">₹{order.price * order.quantity}</span>
                         </div>
                         {editable && timeLeft && <div className="order-timer">⏱ {timeLeft} to modify</div>}
@@ -734,10 +641,7 @@ const TableBooking = () => {
                       </div>
                     );
                   })}
-                  <div className="orders-total">
-                    <span>Total</span>
-                    <span>₹{getMyOrdersTotal()}</span>
-                  </div>
+                  <div className="orders-total"><span>Total</span><span>₹{getMyOrdersTotal()}</span></div>
                 </>
               )}
             </div>
@@ -762,18 +666,13 @@ const TableBooking = () => {
 
               return (
                 <>
-                  {imageUrl && (
-                    <div className="item-modal-image">
-                      <img src={getImageUrl(imageUrl)} alt={productName} />
-                    </div>
-                  )}
+                  {imageUrl && <div className="item-modal-image"><img src={getImageUrl(imageUrl)} alt={productName} /></div>}
                   <div className="item-modal-content">
                     <div className="item-modal-header">
                       <div className={`food-badge-lg ${foodTypeInfo.class}`}></div>
                       <h2>{productName}</h2>
                     </div>
                     {productDescription && <p className="item-modal-desc">{productDescription}</p>}
-                    
                     <div className="item-options">
                       <h4>Select Option</h4>
                       {itemPrices.map(price => {
