@@ -35,9 +35,20 @@ api.interceptors.response.use(
 );
 
 // Auth API
+// Backend expects: { "loginId": "username", "password": "password" }
 export const authAPI = {
-  login: (loginId, password) =>
-    api.post('/auth/login', { loginId, password }),
+  login: (loginIdParam, passwordParam) => {
+    // Explicitly create the request body object
+    // Using different param names to avoid any confusion
+    const requestBody = {
+      loginId: String(loginIdParam),
+      password: String(passwordParam)
+    };
+    console.log('=== API LOGIN DEBUG ===');
+    console.log('Request URL:', API_BASE_URL + '/auth/login');
+    console.log('Request body:', JSON.stringify(requestBody));
+    return api.post('/auth/login', requestBody);
+  },
   
   forgotPassword: (loginId) =>
     api.post('/auth/forgot-password', { loginId }),
@@ -79,7 +90,7 @@ export const userAPI = {
     api.get(`/userEntities/search/findByUserName?username=${username}`),
 };
 
-// Item API
+// Item API - Uses camelCase field names (itemId, productName, restaurantId, etc.)
 export const itemAPI = {
   getAll: () => api.get('/items'),
   
@@ -94,7 +105,7 @@ export const itemAPI = {
   delete: (itemId) => api.delete(`/items/${itemId}`),
 };
 
-// Price API
+// Price API - Uses snake_case field names (price_id, restaurant_id, portion_size, item_id, price)
 export const priceAPI = {
   getAll: () => api.get('/prices'),
   
@@ -124,7 +135,7 @@ export const serviceTypeAPI = {
   delete: (serviceTypeId) => api.delete(`/service-types/${serviceTypeId}`),
 };
 
-// Additional Pricing API
+// Additional Pricing API - Uses camelCase field names
 export const additionalPricingAPI = {
   getAll: () => api.get('/additional-pricings'),
   
@@ -151,7 +162,30 @@ export const orderAPI = {
   
   patch: (orderId, data) => api.patch(`/orders/${orderId}`, data),
   
+  updateStatus: (orderId, status) => api.patch(`/orders/${orderId}`, { order_status: status, orderStatus: status }),
+  
   delete: (orderId) => api.delete(`/orders/${orderId}`),
+};
+
+// Upload API
+export const uploadAPI = {
+  uploadItemImage: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/api/upload/item-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  
+  uploadRestaurantImage: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post('/api/upload/restaurant-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  
+  deleteImage: (imageUrl) => api.delete(`/api/upload/image?url=${encodeURIComponent(imageUrl)}`),
 };
 
 export default api;

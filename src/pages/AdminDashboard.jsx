@@ -138,10 +138,10 @@ const AdminDashboard = () => {
               <span className="nav-icon">📋</span>
               <span>Orders</span>
             </Link>
-            <a href="/table/1" target="_blank" rel="noopener noreferrer" className="nav-item">
-              <span className="nav-icon">📱</span>
-              <span>Preview Menu</span>
-            </a>
+            <Link to="/admin/prices" className="nav-item">
+              <span className="nav-icon">💰</span>
+              <span>Pricing</span>
+            </Link>
           </div>
         </nav>
 
@@ -403,7 +403,7 @@ const AdminDashboard = () => {
             <div className="instruction-card">
               <div className="instruction-number">2</div>
               <h3>Generate QR Codes</h3>
-              <p>Create QR codes for each table pointing to /table/1, /table/2, etc.</p>
+              <p>Create QR codes for each table pointing to /order/[restaurantId]/1, /order/[restaurantId]/2, etc.</p>
             </div>
             <div className="instruction-card">
               <div className="instruction-number">3</div>

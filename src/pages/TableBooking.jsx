@@ -1,468 +1,446 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { itemAPI, priceAPI, orderAPI, restaurantAPI } from '../services/api';
+import { useParams } from 'react-router-dom';
+import { restaurantAPI, itemAPI, priceAPI, orderAPI } from '../services/api';
 import './TableBooking.css';
 
 const TableBooking = () => {
   const { restaurantId, tableNumber } = useParams();
-  const navigate = useNavigate();
-  
-  // Restaurant selection state
-  const [restaurants, setRestaurants] = useState([]);
-  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-  const [loadingRestaurants, setLoadingRestaurants] = useState(false);
-  
-  // Customer details state
-  const [mobileNumber, setMobileNumber] = useState('');
+
+  const [currentScreen, setCurrentScreen] = useState('welcome');
+  const [restaurant, setRestaurant] = useState(null);
+  const [restaurantLoading, setRestaurantLoading] = useState(true);
+  const [restaurantError, setRestaurantError] = useState(null);
+
   const [customerName, setCustomerName] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
-  
-  // Menu state
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
+
   const [menuItems, setMenuItems] = useState([]);
   const [prices, setPrices] = useState([]);
   const [cart, setCart] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedFoodType, setSelectedFoodType] = useState('all');
   const [loading, setLoading] = useState(false);
-  const [orderPlaced, setOrderPlaced] = useState(false);
-  const [showCart, setShowCart] = useState(false);
+  const [showItemDetail, setShowItemDetail] = useState(null);
+  const [showCheckout, setShowCheckout] = useState(false);
+
+  const [myOrders, setMyOrders] = useState([]);
+  const [showMyOrders, setShowMyOrders] = useState(false);
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+  const ORDER_EDIT_WINDOW_MS = 2 * 60 * 1000;
+
+  const getItemField = (item, field) => item?.[field];
+  const getPriceField = (price, field) => {
+    if (!price) return undefined;
+    const snakeCase = field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    return price[field] !== undefined ? price[field] : price[snakeCase];
+  };
 
   useEffect(() => {
-    if (!restaurantId) {
-      fetchRestaurants();
-    } else {
-      fetchRestaurantDetails();
+    if (restaurantId) fetchRestaurant();
+    else {
+      setRestaurantError('Invalid URL. Please scan the QR code again.');
+      setRestaurantLoading(false);
     }
   }, [restaurantId]);
 
   useEffect(() => {
-    if (showMenu && (restaurantId || selectedRestaurant)) {
-      fetchData();
-    }
-  }, [showMenu, restaurantId, selectedRestaurant]);
+    const interval = setInterval(() => setMyOrders(prev => [...prev]), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const fetchRestaurants = async () => {
+  const fetchRestaurant = async () => {
     try {
-      setLoadingRestaurants(true);
-      const response = await restaurantAPI.getAll();
-      setRestaurants(response.data || []);
-    } catch (error) {
-      console.error('Error fetching restaurants:', error);
-    } finally {
-      setLoadingRestaurants(false);
-    }
-  };
-
-  const fetchRestaurantDetails = async () => {
-    try {
+      setRestaurantLoading(true);
       const response = await restaurantAPI.getById(restaurantId);
-      setSelectedRestaurant(response.data);
+      if (response.data) {
+        setRestaurant(response.data);
+        setRestaurantError(null);
+      } else setRestaurantError('Restaurant not found.');
     } catch (error) {
-      console.error('Error fetching restaurant:', error);
-      fetchRestaurants();
+      setRestaurantError('Unable to load restaurant.');
+    } finally {
+      setRestaurantLoading(false);
     }
   };
 
-  const fetchData = async () => {
+  const fetchMenuItems = async () => {
     try {
       setLoading(true);
-      const activeRestaurantId = restaurantId || (selectedRestaurant?.rest_id || selectedRestaurant?.restId);
-      
-      const [itemsRes, pricesRes] = await Promise.all([
-        itemAPI.getAll(),
-        priceAPI.getAll(),
-      ]);
-
-      const availableItems = itemsRes.data.filter((item) => {
-        const itemRestId = item.restaurant_id || item.restaurantId;
-        const itemStatus = item.item_status || item.itemStatus;
-        return itemRestId === activeRestaurantId && itemStatus === 'available';
+      const [itemsRes, pricesRes] = await Promise.all([itemAPI.getAll(), priceAPI.getAll()]);
+      const allItems = itemsRes.data || [];
+      const filteredItems = allItems.filter(item => {
+        const itemRestId = getItemField(item, 'restaurantId');
+        const status = getItemField(item, 'itemStatus');
+        return itemRestId === restaurantId && status === 'available';
       });
-
-      const restaurantPrices = pricesRes.data.filter((price) => {
-        return price.restaurant_id === activeRestaurantId;
-      });
-
-      setMenuItems(availableItems);
-      setPrices(restaurantPrices);
+      setMenuItems(filteredItems);
+      setPrices(pricesRes.data || []);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching menu:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectRestaurant = (restaurant) => {
-    const restId = restaurant.rest_id || restaurant.restId;
-    navigate(`/restaurant/${restId}/table/${tableNumber}`);
-    setSelectedRestaurant(restaurant);
-  };
-
   const handleStartOrder = (e) => {
     e.preventDefault();
-    if (mobileNumber.trim() && customerName.trim() && mobileNumber.length >= 10) {
-      setShowMenu(true);
+    if (customerName && customerPhone) {
+      fetchMenuItems();
+      setCurrentScreen('menu');
     }
   };
 
-  const getItemPrice = (itemId, portionSize = 'regular') => {
-    const price = prices.find(
-      (p) => p.item_id === itemId && p.portion_size === portionSize
-    );
-    return price?.price || 0;
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    if (imageUrl.startsWith('http')) return imageUrl;
+    if (imageUrl.startsWith('/')) return `${API_BASE_URL}${imageUrl}`;
+    return `${API_BASE_URL}/${imageUrl}`;
   };
 
-  const getItemPriceOptions = (itemId) => {
-    return prices.filter((p) => p.item_id === itemId);
+  const getCategoryIcon = (category) => {
+    const icons = { 'starter': '🥗', 'main': '🍛', 'dessert': '🍰', 'beverage': '🥤', 'appetizer': '🍤', 'soup': '🍲', 'biryani': '🍚', 'pizza': '🍕', 'burger': '🍔' };
+    return icons[category?.toLowerCase()] || '🍴';
   };
 
-  const addToCart = (item, portionSize = 'regular') => {
-    const itemId = item.item_id || item.itemId;
-    const price = getItemPrice(itemId, portionSize);
-    const cartItem = {
-      ...item,
-      portionSize,
-      price,
-      cartId: `${itemId}-${portionSize}`,
-      quantity: 1,
+  const getFoodTypeInfo = (foodType) => {
+    const types = {
+      'veg': { label: 'Veg', class: 'ft-veg' },
+      'non-veg': { label: 'Non-Veg', class: 'ft-nonveg' },
+      'egg': { label: 'Egg', class: 'ft-egg' }
     };
-
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((ci) => ci.cartId === cartItem.cartId);
-      if (existingItem) {
-        return prevCart.map((ci) =>
-          ci.cartId === cartItem.cartId
-            ? { ...ci, quantity: ci.quantity + 1 }
-            : ci
-        );
-      }
-      return [...prevCart, cartItem];
-    });
+    return types[foodType?.toLowerCase()] || { label: foodType, class: '' };
   };
 
-  const updateCartQuantity = (cartId, newQuantity) => {
-    if (newQuantity <= 0) {
-      removeFromCart(cartId);
-      return;
+  const categories = ['all', ...new Set(menuItems.map(item => getItemField(item, 'itemCategory')).filter(Boolean))];
+  const foodTypes = [
+    { value: 'all', label: 'All' },
+    { value: 'veg', label: 'Vegetarian', class: 'ft-veg' },
+    { value: 'non-veg', label: 'Non-Veg', class: 'ft-nonveg' },
+    { value: 'egg', label: 'Contains Egg', class: 'ft-egg' }
+  ];
+
+  const filteredItems = menuItems.filter(item => {
+    const category = getItemField(item, 'itemCategory');
+    const foodType = getItemField(item, 'foodType');
+    return (selectedCategory === 'all' || category === selectedCategory) &&
+           (selectedFoodType === 'all' || foodType === selectedFoodType);
+  });
+
+  const getItemPrices = (itemId) => prices.filter(p => getPriceField(p, 'itemId') === itemId);
+
+  const addToCart = (item, price) => {
+    const itemId = getItemField(item, 'itemId');
+    const priceId = getPriceField(price, 'priceId');
+    const existingIndex = cart.findIndex(c => c.itemId === itemId && c.priceId === priceId);
+    
+    if (existingIndex >= 0) {
+      const newCart = [...cart];
+      newCart[existingIndex].quantity += 1;
+      setCart(newCart);
+    } else {
+      setCart([...cart, {
+        itemId, priceId,
+        name: getItemField(item, 'productName'),
+        description: getItemField(item, 'productDescription'),
+        portion: getPriceField(price, 'portionSize'),
+        price: price.price,
+        quantity: 1,
+        itemNotes: ''
+      }]);
     }
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.cartId === cartId ? { ...item, quantity: newQuantity } : item
-      )
-    );
   };
 
-  const removeFromCart = (cartId) => {
-    setCart((prevCart) => prevCart.filter((item) => item.cartId !== cartId));
+  const updateCartQuantity = (index, delta) => {
+    const newCart = [...cart];
+    newCart[index].quantity += delta;
+    if (newCart[index].quantity <= 0) newCart.splice(index, 1);
+    setCart(newCart);
   };
 
-  const calculateTotal = () => {
-    return cart.reduce((total, item) => total + item.price * item.quantity, 0);
+  const updateCartItemNotes = (index, notes) => {
+    const newCart = [...cart];
+    newCart[index].itemNotes = notes;
+    setCart(newCart);
   };
 
-  const getTotalItems = () => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
+  const removeFromCart = (index) => {
+    const newCart = [...cart];
+    newCart.splice(index, 1);
+    setCart(newCart);
   };
 
-  const placeOrder = async () => {
+  const getCartTotal = () => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const getCartItemCount = () => cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  const isOrderEditable = (order) => (Date.now() - order.placedAt) < ORDER_EDIT_WINDOW_MS;
+  const getRemainingTime = (order) => {
+    const remaining = ORDER_EDIT_WINDOW_MS - (Date.now() - order.placedAt);
+    if (remaining <= 0) return null;
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handlePlaceOrder = async () => {
+    if (cart.length === 0) return;
     try {
       setLoading(true);
-      const activeRestaurantId = restaurantId || (selectedRestaurant?.rest_id || selectedRestaurant?.restId);
-      
-      const orderPromises = cart.map((item) =>
-        orderAPI.create({
-          productId: item.product_id || item.productId,
-          restaurantId: activeRestaurantId,
-          tableNumber: parseInt(tableNumber),
-          quantity: item.quantity,
-          portionSize: item.portionSize,
-          createdBy: `${customerName} (${mobileNumber})`,
-        })
-      );
-
-      await Promise.all(orderPromises);
-      setOrderPlaced(true);
-      setShowCart(false);
-      
-      setTimeout(() => {
-        setCart([]);
-        setOrderPlaced(false);
-        setShowMenu(false);
-        setMobileNumber('');
-        setCustomerName('');
-      }, 4000);
+      const orderPromises = cart.map(cartItem => orderAPI.create({
+        restaurantId, productId: cartItem.itemId,
+        tableNumber: parseInt(tableNumber, 10),
+        createdBy: customerName, updatedBy: customerName,
+        customerPhone, orderNotes: orderNotes || '',
+        itemNotes: cartItem.itemNotes || '',
+        price: cartItem.price, quantity: cartItem.quantity,
+        portionSize: cartItem.portion || ''
+      }));
+      const results = await Promise.all(orderPromises);
+      const newOrders = cart.map((cartItem, index) => ({
+        ...cartItem, orderId: results[index]?.data?.orderId,
+        placedAt: Date.now(), orderNotes, status: 'pending'
+      }));
+      setMyOrders(prev => [...prev, ...newOrders]);
+      setCart([]);
+      setOrderNotes('');
+      setShowCheckout(false);
+      setCurrentScreen('success');
     } catch (error) {
-      console.error('Error placing order:', error);
       alert('Failed to place order. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const getRestaurantName = () => {
-    return selectedRestaurant?.name || 'Restaurant';
+  const handleModifyOrder = async (orderIndex, newQuantity) => {
+    const order = myOrders[orderIndex];
+    if (!isOrderEditable(order)) return alert('Order can no longer be modified.');
+    try {
+      if (newQuantity <= 0) {
+        if (order.orderId) await orderAPI.delete(order.orderId);
+        setMyOrders(prev => prev.filter((_, i) => i !== orderIndex));
+      } else {
+        if (order.orderId) await orderAPI.update(order.orderId, { quantity: newQuantity });
+        setMyOrders(prev => prev.map((o, i) => i === orderIndex ? { ...o, quantity: newQuantity } : o));
+      }
+    } catch (error) {
+      alert('Failed to modify order.');
+    }
   };
 
-  const getImageUrl = (imageUrl) => {
-    if (!imageUrl) return null;
-    if (imageUrl.startsWith('http')) return imageUrl;
-    return `${API_BASE_URL}${imageUrl}`;
+  const handleCancelOrder = async (orderIndex) => {
+    const order = myOrders[orderIndex];
+    if (!isOrderEditable(order)) return alert('Order can no longer be cancelled.');
+    if (!window.confirm('Cancel this item?')) return;
+    try {
+      if (order.orderId) await orderAPI.delete(order.orderId);
+      setMyOrders(prev => prev.filter((_, i) => i !== orderIndex));
+    } catch (error) {
+      alert('Failed to cancel order.');
+    }
   };
 
-  const getCategoryIcon = (category) => {
-    const icons = {
-      'starter': '🥗',
-      'main': '🍛',
-      'dessert': '🍰',
-      'beverage': '🥤',
-      'appetizer': '🍤',
-      'soup': '🍲',
-      'salad': '🥬',
-      'pizza': '🍕',
-      'burger': '🍔',
-      'pasta': '🍝',
-      'seafood': '🦐',
-      'grill': '🥩',
-      'breakfast': '🍳',
-      'sandwich': '🥪',
-      'other': '🍴'
-    };
-    return icons[category?.toLowerCase()] || '🍴';
-  };
+  const getMyOrdersTotal = () => myOrders.reduce((sum, o) => sum + (o.price * o.quantity), 0);
 
-  const categories = ['all', ...new Set(menuItems.map((item) => {
-    return item.item_category || item.itemCategory || 'other';
-  }))];
-
-  const filteredItems = selectedCategory === 'all'
-    ? menuItems
-    : menuItems.filter((item) => {
-        const category = item.item_category || item.itemCategory;
-        return category === selectedCategory;
-      });
-
-  // Loading state
-  if (loadingRestaurants) {
+  // Loading
+  if (restaurantLoading) {
     return (
-      <div className="tb-loading-screen">
-        <div className="tb-loading-content">
-          <div className="tb-loader"></div>
-          <p>Discovering restaurants...</p>
+      <div className="app">
+        <div className="loading-screen">
+          <div className="loading-spinner"></div>
+          <p>Loading...</p>
         </div>
       </div>
     );
   }
 
-  // Restaurant Selection Screen
-  if (!restaurantId && !selectedRestaurant) {
+  // Error
+  if (restaurantError) {
     return (
-      <div className="tb-selection-screen">
-        <div className="tb-selection-container">
-          <div className="tb-selection-header">
-            <div className="tb-brand">
-              <span className="tb-brand-icon">✨</span>
-              <span className="tb-brand-text">FineDine</span>
-            </div>
-            <div className="tb-table-indicator">
-              <span className="tb-table-icon">🪑</span>
-              <span>Table {tableNumber}</span>
-            </div>
-          </div>
-
-          <div className="tb-selection-content">
-            <h1>Select Your Restaurant</h1>
-            <p className="tb-selection-subtitle">Choose where you're dining today</p>
-
-            {restaurants.length === 0 ? (
-              <div className="tb-empty-restaurants">
-                <div className="tb-empty-icon">🏪</div>
-                <h3>No Restaurants Available</h3>
-                <p>Please check back later</p>
-              </div>
-            ) : (
-              <div className="tb-restaurant-grid">
-                {restaurants.map((restaurant) => {
-                  const id = restaurant.rest_id || restaurant.restId;
-                  const imageUrl = restaurant.imageUrl;
-                  return (
-                    <div 
-                      key={id} 
-                      className="tb-restaurant-card"
-                      onClick={() => handleSelectRestaurant(restaurant)}
-                    >
-                      <div className="tb-restaurant-image">
-                        {imageUrl ? (
-                          <img src={getImageUrl(imageUrl)} alt={restaurant.name} />
-                        ) : (
-                          <div className="tb-restaurant-placeholder">
-                            <span>🍽️</span>
-                          </div>
-                        )}
-                        <div className="tb-restaurant-overlay">
-                          <span className="tb-select-btn">View Menu →</span>
-                        </div>
-                      </div>
-                      <div className="tb-restaurant-info">
-                        <h3>{restaurant.name}</h3>
-                        {restaurant.address && (
-                          <p><span>📍</span> {restaurant.address}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="tb-selection-footer">
-            <p>Powered by <span>FineDine</span></p>
-          </div>
+      <div className="app">
+        <div className="error-screen">
+          <div className="error-emoji">😕</div>
+          <h2>Oops!</h2>
+          <p>{restaurantError}</p>
         </div>
       </div>
     );
   }
 
-  // Order Success Screen
-  if (orderPlaced) {
+  // Welcome Screen
+  if (currentScreen === 'welcome') {
     return (
-      <div className="tb-success-screen">
-        <div className="tb-success-content">
-          <div className="tb-success-animation">
-            <div className="tb-success-circle">
-              <svg viewBox="0 0 52 52">
-                <circle cx="26" cy="26" r="25" fill="none" />
-                <path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
-              </svg>
-            </div>
-          </div>
-          <h1>Order Placed!</h1>
-          <p className="tb-success-message">Your order has been sent to the kitchen</p>
+      <div className="app welcome-app">
+        <div className="welcome-screen">
+          <div className="welcome-bg-pattern"></div>
           
-          <div className="tb-success-details">
-            <div className="tb-success-detail-item">
-              <span className="tb-detail-icon">👤</span>
-              <span>{customerName}</span>
-            </div>
-            <div className="tb-success-detail-item">
-              <span className="tb-detail-icon">📱</span>
-              <span>{mobileNumber}</span>
-            </div>
-            <div className="tb-success-detail-item">
-              <span className="tb-detail-icon">🏪</span>
-              <span>{getRestaurantName()}</span>
-            </div>
-            <div className="tb-success-detail-item">
-              <span className="tb-detail-icon">🪑</span>
-              <span>Table {tableNumber}</span>
-            </div>
-          </div>
-
-          <div className="tb-success-items">
-            <h4>Order Summary</h4>
-            {cart.map((item) => (
-              <div key={item.cartId} className="tb-success-item">
-                <span>{item.quantity}x {item.product_name || item.productName}</span>
-                <span>₹{(item.price * item.quantity).toFixed(2)}</span>
+          <div className="welcome-content">
+            <div className="welcome-hero">
+              <div className="hero-icon">
+                <span>🍽️</span>
               </div>
-            ))}
-            <div className="tb-success-total">
-              <span>Total</span>
-              <span>₹{calculateTotal().toFixed(2)}</span>
-            </div>
-          </div>
-
-          <p className="tb-success-note">Thank you for dining with us!</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Customer Details Screen
-  if (!showMenu) {
-    return (
-      <div className="tb-welcome-screen">
-        <div className="tb-welcome-container">
-          <div className="tb-welcome-decor tb-decor-1"></div>
-          <div className="tb-welcome-decor tb-decor-2"></div>
-          
-          <div className="tb-welcome-card">
-            <div className="tb-welcome-header">
-              <div className="tb-restaurant-badge">
-                <span className="tb-badge-icon">🍽️</span>
-              </div>
-              <h1>{getRestaurantName()}</h1>
-              <div className="tb-table-badge">
+              <h1>{restaurant?.name}</h1>
+              <p className="hero-subtitle">Delicious food, just a tap away</p>
+              <div className="table-chip">
+                <span className="table-icon">🪑</span>
                 <span>Table {tableNumber}</span>
               </div>
             </div>
 
-            <div className="tb-welcome-body">
-              <h2>Welcome!</h2>
-              <p className="tb-welcome-subtitle">Please enter your details to continue</p>
+            <div className="welcome-card">
+              <div className="card-header">
+                <h2>Get Started</h2>
+                <p>Enter your details to explore our menu</p>
+              </div>
 
-              <form onSubmit={handleStartOrder} className="tb-welcome-form">
-                <div className="tb-form-group">
-                  <label htmlFor="customerName">
-                    <span className="tb-label-icon">👤</span>
-                    Your Name
-                  </label>
+              <form onSubmit={handleStartOrder}>
+                <div className="input-field">
+                  <div className="input-icon">👤</div>
                   <input
-                    id="customerName"
                     type="text"
-                    placeholder="Enter your name"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Your name"
                     required
-                    autoFocus
                   />
                 </div>
 
-                <div className="tb-form-group">
-                  <label htmlFor="mobileNumber">
-                    <span className="tb-label-icon">📱</span>
-                    Mobile Number
-                  </label>
+                <div className="input-field">
+                  <div className="input-icon">📱</div>
                   <input
-                    id="mobileNumber"
                     type="tel"
-                    placeholder="Enter 10-digit mobile number"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="Phone number"
                     required
-                    pattern="[0-9]{10}"
-                    maxLength="10"
                   />
-                  <span className="tb-input-hint">We'll notify you when your order is ready</span>
                 </div>
 
-                <button
-                  type="submit"
-                  className="tb-btn-primary"
-                  disabled={!mobileNumber || mobileNumber.length < 10 || !customerName.trim()}
-                >
-                  <span>View Menu</span>
-                  <span className="tb-btn-arrow">→</span>
+                <button type="submit" className="btn-hero">
+                  <span>Explore Menu</span>
+                  <span className="btn-icon">→</span>
                 </button>
               </form>
             </div>
 
-            <div className="tb-welcome-features">
-              <div className="tb-feature">
-                <span className="tb-feature-icon">⚡</span>
-                <span>Quick Order</span>
+            <div className="welcome-features">
+              <div className="feature">
+                <span>📖</span>
+                <span>Browse Menu</span>
               </div>
-              <div className="tb-feature">
-                <span className="tb-feature-icon">🍳</span>
-                <span>Fresh Food</span>
+              <div className="feature">
+                <span>🛒</span>
+                <span>Add to Cart</span>
               </div>
-              <div className="tb-feature">
-                <span className="tb-feature-icon">💳</span>
-                <span>Easy Pay</span>
+              <div className="feature">
+                <span>✨</span>
+                <span>Order Instantly</span>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Success Screen - Beautiful Order Summary
+  if (currentScreen === 'success') {
+    return (
+      <div className="app">
+        <div className="success-screen">
+          <div className="success-header">
+            <div className="success-animation">
+              <div className="success-circle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <div className="success-rings"></div>
+            </div>
+            <h1>Order Confirmed!</h1>
+            <p>Your delicious food is being prepared</p>
+          </div>
+
+          <div className="success-card">
+            <div className="success-card-header">
+              <div className="restaurant-info">
+                <h3>{restaurant?.name}</h3>
+                <span>Table {tableNumber}</span>
+              </div>
+              <div className="order-time">
+                {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+              </div>
+            </div>
+
+            <div className="customer-info">
+              <div className="customer-detail">
+                <span className="detail-icon">👤</span>
+                <span>{customerName}</span>
+              </div>
+              <div className="customer-detail">
+                <span className="detail-icon">📱</span>
+                <span>{customerPhone}</span>
+              </div>
+            </div>
+
+            {myOrders.length > 0 && (
+              <div className="ordered-items">
+                <h4>Order Summary</h4>
+                {myOrders.map((order, index) => {
+                  const editable = isOrderEditable(order);
+                  const timeLeft = getRemainingTime(order);
+                  return (
+                    <div key={index} className={`ordered-item ${!editable ? 'locked' : ''}`}>
+                      <div className="ordered-item-main">
+                        <div className="ordered-item-info">
+                          <h5>{order.name}</h5>
+                          {order.portion && <span className="portion">{order.portion}</span>}
+                        </div>
+                        {editable ? (
+                          <div className="order-modify">
+                            <div className="qty-buttons">
+                              <button onClick={() => handleModifyOrder(index, order.quantity - 1)}>−</button>
+                              <span>{order.quantity}</span>
+                              <button onClick={() => handleModifyOrder(index, order.quantity + 1)}>+</button>
+                            </div>
+                            <button className="btn-cancel-item" onClick={() => handleCancelOrder(index)}>
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="qty-display">×{order.quantity}</span>
+                        )}
+                        <span className="ordered-item-price">₹{order.price * order.quantity}</span>
+                      </div>
+                      {editable && timeLeft && (
+                        <div className="modify-timer">
+                          <span className="timer-icon">⏱</span>
+                          <span>{timeLeft} left to modify</span>
+                        </div>
+                      )}
+                      {!editable && (
+                        <div className="item-confirmed">
+                          <span>✓</span>
+                          <span>Being prepared</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                <div className="order-total">
+                  <span>Total Amount</span>
+                  <span>₹{getMyOrdersTotal()}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button className="btn-order-more" onClick={() => setCurrentScreen('menu')}>
+            <span>🍴</span>
+            <span>Order More Items</span>
+          </button>
         </div>
       </div>
     );
@@ -470,149 +448,118 @@ const TableBooking = () => {
 
   // Menu Screen
   return (
-    <div className="tb-menu-screen">
-      {/* Header */}
-      <header className="tb-header">
-        <div className="tb-header-content">
-          <div className="tb-header-left">
-            <h1 className="tb-header-title">{getRestaurantName()}</h1>
-            <div className="tb-header-info">
-              <span className="tb-header-badge">
-                <span>👤</span> {customerName}
-              </span>
-              <span className="tb-header-badge">
-                <span>🪑</span> Table {tableNumber}
-              </span>
+    <div className="app">
+      <header className="menu-header">
+        <div className="header-main">
+          <div className="header-left">
+            <h1>{restaurant?.name}</h1>
+            <div className="header-meta">
+              <span className="meta-item">🪑 Table {tableNumber}</span>
+              <span className="meta-item">👤 {customerName}</span>
             </div>
           </div>
-          <button 
-            className="tb-cart-btn"
-            onClick={() => setShowCart(true)}
-          >
-            <div className="tb-cart-icon">
-              <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-              {getTotalItems() > 0 && (
-                <span className="tb-cart-count">{getTotalItems()}</span>
-              )}
-            </div>
-            <span className="tb-cart-total">₹{calculateTotal().toFixed(0)}</span>
-          </button>
+          <div className="header-right">
+            {myOrders.length > 0 && (
+              <button className="btn-orders" onClick={() => setShowMyOrders(true)}>
+                <span>📋</span>
+                <span className="orders-badge">{myOrders.length}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="filter-section">
+          <div className="food-type-filters">
+            {foodTypes.map(ft => (
+              <button
+                key={ft.value}
+                className={`filter-pill ${ft.class || ''} ${selectedFoodType === ft.value ? 'active' : ''}`}
+                onClick={() => setSelectedFoodType(ft.value)}
+              >
+                {ft.label}
+              </button>
+            ))}
+          </div>
+          <div className="category-filters">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                className={`category-pill ${selectedCategory === cat ? 'active' : ''}`}
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat === 'all' ? '🍴 All' : `${getCategoryIcon(cat)} ${cat}`}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      {/* Categories */}
-      <div className="tb-categories">
-        <div className="tb-categories-scroll">
-          {categories.map((category) => (
-            <button
-              key={category}
-              className={`tb-category-btn ${selectedCategory === category ? 'active' : ''}`}
-              onClick={() => setSelectedCategory(category)}
-            >
-              <span className="tb-category-icon">
-                {category === 'all' ? '🍴' : getCategoryIcon(category)}
-              </span>
-              <span className="tb-category-name">
-                {category === 'all' ? 'All' : category}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Menu Grid */}
-      <main className="tb-menu-main">
+      <main className="menu-main">
         {loading ? (
-          <div className="tb-menu-loading">
-            <div className="tb-loader"></div>
+          <div className="loading-state">
+            <div className="loading-spinner"></div>
             <p>Loading delicious items...</p>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="tb-menu-empty">
-            <div className="tb-empty-icon">🍽️</div>
-            <h3>No items available</h3>
-            <p>Check back soon for new dishes!</p>
+          <div className="empty-state">
+            <span>🍽️</span>
+            <p>No items found</p>
           </div>
         ) : (
-          <div className="tb-menu-grid">
-            {filteredItems.map((item, index) => {
-              const itemId = item.item_id || item.itemId;
-              const productName = item.product_name || item.productName;
-              const productDescription = item.product_description || item.productDescription;
-              const imageUrl = item.image_url || item.imageUrl;
-              const category = item.item_category || item.itemCategory;
-              const priceOptions = getItemPriceOptions(itemId);
-              const defaultPrice = priceOptions[0]?.price || 0;
-              const cartItem = cart.find(ci => ci.cartId === `${itemId}-${priceOptions[0]?.portion_size || 'regular'}`);
+          <div className="menu-grid">
+            {filteredItems.map((item) => {
+              const itemId = getItemField(item, 'itemId');
+              const productName = getItemField(item, 'productName');
+              const productDescription = getItemField(item, 'productDescription');
+              const imageUrl = getItemField(item, 'imageUrl');
+              const foodType = getItemField(item, 'foodType');
+              const foodTypeInfo = getFoodTypeInfo(foodType);
+              const itemPrices = getItemPrices(itemId);
+              const cartItem = cart.find(c => c.itemId === itemId);
+              const minPrice = itemPrices.length > 0 ? Math.min(...itemPrices.map(p => p.price)) : null;
 
               return (
-                <div
-                  key={itemId}
-                  className="tb-menu-item"
-                  style={{ animationDelay: `${index * 0.05}s` }}
-                >
-                  <div className="tb-item-image">
+                <div key={itemId} className="menu-card">
+                  <div className="card-image" onClick={() => setShowItemDetail(item)}>
                     {imageUrl ? (
                       <img src={getImageUrl(imageUrl)} alt={productName} />
                     ) : (
-                      <div className="tb-item-placeholder">
-                        <span>{getCategoryIcon(category)}</span>
+                      <div className="card-image-placeholder">
+                        {getCategoryIcon(getItemField(item, 'itemCategory'))}
                       </div>
                     )}
-                    <span className="tb-item-category">{category}</span>
+                    <div className={`food-badge ${foodTypeInfo.class}`}></div>
                   </div>
                   
-                  <div className="tb-item-content">
-                    <h3 className="tb-item-name">{productName}</h3>
-                    {productDescription && (
-                      <p className="tb-item-description">{productDescription}</p>
-                    )}
+                  <div className="card-content">
+                    <h3 onClick={() => setShowItemDetail(item)}>{productName}</h3>
+                    {productDescription && <p className="card-desc">{productDescription}</p>}
                     
-                    <div className="tb-item-footer">
-                      {priceOptions.length > 1 ? (
-                        <div className="tb-price-options">
-                          {priceOptions.map((priceOpt) => (
-                            <button
-                              key={priceOpt.price_id}
-                              className="tb-price-option"
-                              onClick={() => addToCart(item, priceOpt.portion_size)}
-                            >
-                              <span className="tb-portion">{priceOpt.portion_size}</span>
-                              <span className="tb-price">₹{priceOpt.price}</span>
-                            </button>
-                          ))}
-                        </div>
+                    <div className="card-footer">
+                      {minPrice ? (
+                        <span className="card-price">₹{minPrice}{itemPrices.length > 1 ? '+' : ''}</span>
                       ) : (
-                        <div className="tb-single-price">
-                          <span className="tb-item-price">₹{defaultPrice}</span>
-                          {cartItem ? (
-                            <div className="tb-qty-controls">
-                              <button 
-                                className="tb-qty-btn"
-                                onClick={() => updateCartQuantity(cartItem.cartId, cartItem.quantity - 1)}
-                              >
-                                −
-                              </button>
-                              <span className="tb-qty">{cartItem.quantity}</span>
-                              <button 
-                                className="tb-qty-btn"
-                                onClick={() => updateCartQuantity(cartItem.cartId, cartItem.quantity + 1)}
-                              >
-                                +
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              className="tb-add-btn"
-                              onClick={() => addToCart(item, priceOptions[0]?.portion_size || 'regular')}
-                            >
-                              <span>ADD</span>
-                              <span className="tb-add-icon">+</span>
-                            </button>
-                          )}
-                        </div>
+                        <span className="card-price-na">N/A</span>
+                      )}
+                      
+                      {itemPrices.length > 0 && (
+                        cartItem ? (
+                          <div className="qty-control">
+                            <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), -1)}>−</button>
+                            <span>{cartItem.quantity}</span>
+                            <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), 1)}>+</button>
+                          </div>
+                        ) : itemPrices.length === 1 ? (
+                          <button className="btn-add" onClick={() => addToCart(item, itemPrices[0])}>
+                            <span>ADD</span>
+                            <span className="add-plus">+</span>
+                          </button>
+                        ) : (
+                          <button className="btn-add" onClick={() => setShowItemDetail(item)}>
+                            <span>ADD</span>
+                            <span className="add-plus">+</span>
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -623,104 +570,239 @@ const TableBooking = () => {
         )}
       </main>
 
-      {/* Floating Cart Button (Mobile) */}
-      {cart.length > 0 && !showCart && (
-        <div className="tb-floating-cart" onClick={() => setShowCart(true)}>
-          <div className="tb-floating-cart-info">
-            <span className="tb-floating-items">{getTotalItems()} items</span>
-            <span className="tb-floating-total">₹{calculateTotal().toFixed(2)}</span>
+      {/* Floating Cart Button */}
+      {cart.length > 0 && (
+        <div className="cart-float" onClick={() => setShowCheckout(true)}>
+          <div className="cart-float-left">
+            <span className="cart-count">{getCartItemCount()} {getCartItemCount() === 1 ? 'item' : 'items'}</span>
+            <span className="cart-total">₹{getCartTotal()}</span>
           </div>
-          <span className="tb-floating-btn">View Cart →</span>
+          <div className="cart-float-right">
+            <span>View Cart</span>
+            <span className="cart-arrow">🛒</span>
+          </div>
         </div>
       )}
 
-      {/* Cart Drawer */}
-      {showCart && (
-        <div className="tb-cart-overlay" onClick={() => setShowCart(false)}>
-          <div className="tb-cart-drawer" onClick={(e) => e.stopPropagation()}>
-            <div className="tb-cart-header">
-              <h2>Your Order</h2>
-              <button className="tb-cart-close" onClick={() => setShowCart(false)}>
-                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      {/* Checkout Popup Modal */}
+      {showCheckout && (
+        <div className="modal-overlay" onClick={() => setShowCheckout(false)}>
+          <div className="checkout-modal" onClick={e => e.stopPropagation()}>
+            <div className="checkout-header">
+              <h2>Your Cart</h2>
+              <button className="btn-close" onClick={() => setShowCheckout(false)}>×</button>
             </div>
 
-            <div className="tb-cart-body">
-              {cart.length === 0 ? (
-                <div className="tb-cart-empty">
-                  <span className="tb-cart-empty-icon">🛒</span>
-                  <p>Your cart is empty</p>
-                  <button className="tb-btn-secondary" onClick={() => setShowCart(false)}>
-                    Browse Menu
-                  </button>
+            <div className="checkout-body">
+              <div className="checkout-info">
+                <div className="checkout-info-item">
+                  <span>🏪</span>
+                  <div>
+                    <label>Restaurant</label>
+                    <strong>{restaurant?.name}</strong>
+                  </div>
+                </div>
+                <div className="checkout-info-item">
+                  <span>🪑</span>
+                  <div>
+                    <label>Table</label>
+                    <strong>{tableNumber}</strong>
+                  </div>
+                </div>
+                <div className="checkout-info-item">
+                  <span>👤</span>
+                  <div>
+                    <label>Name</label>
+                    <strong>{customerName}</strong>
+                  </div>
+                </div>
+                <div className="checkout-info-item">
+                  <span>📱</span>
+                  <div>
+                    <label>Phone</label>
+                    <strong>{customerPhone}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="checkout-items">
+                <h3>Items ({getCartItemCount()})</h3>
+                {cart.map((item, index) => (
+                  <div key={index} className="checkout-item">
+                    <div className="checkout-item-top">
+                      <div className="checkout-item-details">
+                        <h4>{item.name}</h4>
+                        {item.portion && <span className="item-portion">{item.portion}</span>}
+                      </div>
+                      <button className="btn-remove-item" onClick={() => removeFromCart(index)}>×</button>
+                    </div>
+                    <div className="checkout-item-bottom">
+                      <div className="qty-control">
+                        <button onClick={() => updateCartQuantity(index, -1)}>−</button>
+                        <span>{item.quantity}</span>
+                        <button onClick={() => updateCartQuantity(index, 1)}>+</button>
+                      </div>
+                      <span className="checkout-item-price">₹{item.price * item.quantity}</span>
+                    </div>
+                    <input
+                      className="item-notes-input"
+                      placeholder="Add cooking instructions..."
+                      value={item.itemNotes || ''}
+                      onChange={(e) => updateCartItemNotes(index, e.target.value)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="checkout-notes">
+                <h3>Special Instructions</h3>
+                <textarea
+                  placeholder="Any allergies or special requests for the restaurant..."
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  rows={2}
+                />
+              </div>
+
+              <div className="checkout-summary">
+                <div className="summary-row">
+                  <span>Subtotal</span>
+                  <span>₹{getCartTotal()}</span>
+                </div>
+                <div className="summary-row total">
+                  <span>Total</span>
+                  <span>₹{getCartTotal()}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="checkout-footer">
+              <button className="btn-place-order" onClick={handlePlaceOrder} disabled={loading || cart.length === 0}>
+                {loading ? (
+                  <span>Placing Order...</span>
+                ) : (
+                  <>
+                    <span>Place Order</span>
+                    <span className="order-total">₹{getCartTotal()}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* My Orders Modal */}
+      {showMyOrders && (
+        <div className="modal-overlay" onClick={() => setShowMyOrders(false)}>
+          <div className="orders-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>My Orders</h2>
+              <button className="btn-close" onClick={() => setShowMyOrders(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {myOrders.length === 0 ? (
+                <div className="empty-orders">
+                  <span>📋</span>
+                  <p>No orders yet</p>
                 </div>
               ) : (
-                <div className="tb-cart-items">
-                  {cart.map((item) => {
-                    const productName = item.product_name || item.productName;
+                <>
+                  {myOrders.map((order, index) => {
+                    const editable = isOrderEditable(order);
+                    const timeLeft = getRemainingTime(order);
                     return (
-                      <div key={item.cartId} className="tb-cart-item">
-                        <div className="tb-cart-item-info">
-                          <h4>{productName}</h4>
-                          <span className="tb-cart-item-portion">{item.portionSize}</span>
-                          <span className="tb-cart-item-price">₹{item.price} each</span>
-                        </div>
-                        <div className="tb-cart-item-actions">
-                          <div className="tb-cart-qty">
-                            <button onClick={() => updateCartQuantity(item.cartId, item.quantity - 1)}>−</button>
-                            <span>{item.quantity}</span>
-                            <button onClick={() => updateCartQuantity(item.cartId, item.quantity + 1)}>+</button>
+                      <div key={index} className={`order-card ${!editable ? 'locked' : ''}`}>
+                        <div className="order-card-main">
+                          <div className="order-card-info">
+                            <h4>{order.name}</h4>
+                            {order.portion && <span>{order.portion}</span>}
                           </div>
-                          <span className="tb-cart-item-total">₹{(item.price * item.quantity).toFixed(2)}</span>
-                          <button 
-                            className="tb-cart-remove"
-                            onClick={() => removeFromCart(item.cartId)}
-                          >
-                            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          {editable ? (
+                            <div className="qty-control qty-sm">
+                              <button onClick={() => handleModifyOrder(index, order.quantity - 1)}>−</button>
+                              <span>{order.quantity}</span>
+                              <button onClick={() => handleModifyOrder(index, order.quantity + 1)}>+</button>
+                            </div>
+                          ) : (
+                            <span className="qty-badge">×{order.quantity}</span>
+                          )}
+                          <span className="order-card-price">₹{order.price * order.quantity}</span>
                         </div>
+                        {editable && timeLeft && <div className="order-timer">⏱ {timeLeft} to modify</div>}
+                        {!editable && <div className="order-done">✓ Confirmed</div>}
                       </div>
                     );
                   })}
-                </div>
+                  <div className="orders-total">
+                    <span>Total</span>
+                    <span>₹{getMyOrdersTotal()}</span>
+                  </div>
+                </>
               )}
             </div>
+          </div>
+        </div>
+      )}
 
-            {cart.length > 0 && (
-              <div className="tb-cart-footer">
-                <div className="tb-cart-summary">
-                  <div className="tb-summary-row">
-                    <span>Subtotal</span>
-                    <span>₹{calculateTotal().toFixed(2)}</span>
-                  </div>
-                  <div className="tb-summary-row tb-summary-total">
-                    <span>Total</span>
-                    <span>₹{calculateTotal().toFixed(2)}</span>
-                  </div>
-                </div>
-                <button 
-                  className="tb-btn-checkout"
-                  onClick={placeOrder}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <span className="tb-btn-loader"></span>
-                      <span>Placing Order...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Place Order</span>
-                      <span className="tb-btn-price">₹{calculateTotal().toFixed(2)}</span>
-                    </>
+      {/* Item Detail Modal */}
+      {showItemDetail && (
+        <div className="modal-overlay" onClick={() => setShowItemDetail(null)}>
+          <div className="item-modal" onClick={e => e.stopPropagation()}>
+            <button className="btn-close-float" onClick={() => setShowItemDetail(null)}>×</button>
+            {(() => {
+              const item = showItemDetail;
+              const itemId = getItemField(item, 'itemId');
+              const productName = getItemField(item, 'productName');
+              const productDescription = getItemField(item, 'productDescription');
+              const imageUrl = getItemField(item, 'imageUrl');
+              const foodType = getItemField(item, 'foodType');
+              const foodTypeInfo = getFoodTypeInfo(foodType);
+              const itemPrices = getItemPrices(itemId);
+
+              return (
+                <>
+                  {imageUrl && (
+                    <div className="item-modal-image">
+                      <img src={getImageUrl(imageUrl)} alt={productName} />
+                    </div>
                   )}
-                </button>
-              </div>
-            )}
+                  <div className="item-modal-content">
+                    <div className="item-modal-header">
+                      <div className={`food-badge-lg ${foodTypeInfo.class}`}></div>
+                      <h2>{productName}</h2>
+                    </div>
+                    {productDescription && <p className="item-modal-desc">{productDescription}</p>}
+                    
+                    <div className="item-options">
+                      <h4>Select Option</h4>
+                      {itemPrices.map(price => {
+                        const priceId = getPriceField(price, 'priceId');
+                        const portionSize = getPriceField(price, 'portionSize');
+                        const cartItem = cart.find(c => c.itemId === itemId && c.priceId === priceId);
+                        return (
+                          <div key={priceId} className="item-option">
+                            <div className="option-info">
+                              <span className="option-name">{portionSize || 'Regular'}</span>
+                              <span className="option-price">₹{price.price}</span>
+                            </div>
+                            {cartItem ? (
+                              <div className="qty-control">
+                                <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), -1)}>−</button>
+                                <span>{cartItem.quantity}</span>
+                                <button onClick={() => updateCartQuantity(cart.indexOf(cartItem), 1)}>+</button>
+                              </div>
+                            ) : (
+                              <button className="btn-add-option" onClick={() => addToCart(item, price)}>ADD</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

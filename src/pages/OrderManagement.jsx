@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { orderAPI, restaurantAPI } from '../services/api';
+import { orderAPI, restaurantAPI, itemAPI } from '../services/api';
 import './OrderManagement.css';
 
 const OrderManagement = () => {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRestaurant, setSelectedRestaurant] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -25,12 +26,17 @@ const OrderManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [ordersRes, restaurantsRes] = await Promise.all([
+      const [ordersRes, restaurantsRes, itemsRes] = await Promise.all([
         orderAPI.getAll(),
-        restaurantAPI.getAll()
+        restaurantAPI.getAll(),
+        itemAPI.getAll()
       ]);
+      console.log('Orders response:', ordersRes.data);
+      console.log('Restaurants response:', restaurantsRes.data);
+      console.log('Items response:', itemsRes.data);
       setOrders(ordersRes.data || []);
       setRestaurants(restaurantsRes.data || []);
+      setItems(itemsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -51,12 +57,12 @@ const OrderManagement = () => {
     try {
       await orderAPI.updateStatus(orderId, newStatus);
       setOrders(orders.map(order => 
-        (order.order_id || order.orderId) === orderId 
-          ? { ...order, order_status: newStatus, orderStatus: newStatus }
+        order.orderId === orderId 
+          ? { ...order, orderStatus: newStatus }
           : order
       ));
-      if (selectedOrder && (selectedOrder.order_id || selectedOrder.orderId) === orderId) {
-        setSelectedOrder({ ...selectedOrder, order_status: newStatus, orderStatus: newStatus });
+      if (selectedOrder && selectedOrder.orderId === orderId) {
+        setSelectedOrder({ ...selectedOrder, orderStatus: newStatus });
       }
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -65,10 +71,14 @@ const OrderManagement = () => {
   };
 
   const getRestaurantName = (restaurantId) => {
-    const restaurant = restaurants.find(r => 
-      (r.rest_id || r.restId) === restaurantId
-    );
+    const restaurant = restaurants.find(r => r.restId === restaurantId);
     return restaurant?.name || 'Unknown';
+  };
+
+  // Get product name from productId (orders store productId, not productName)
+  const getProductName = (productId) => {
+    const item = items.find(i => i.itemId === productId);
+    return item?.productName || productId || 'Unknown Item';
   };
 
   const getStatusInfo = (status) => {
@@ -122,12 +132,19 @@ const OrderManagement = () => {
     return `${diffDays}d ago`;
   };
 
+  // Helper to get order field (camelCase)
+  const getOrderField = (order, field) => {
+    if (!order) return undefined;
+    return order[field];
+  };
+
   const filteredOrders = orders.filter(order => {
-    const restaurantId = order.restaurant_id || order.restaurantId;
-    const status = order.order_status || order.orderStatus;
-    const createdBy = order.created_by || order.createdBy || '';
-    const productName = order.product_name || order.productName || '';
-    const tableNumber = order.table_number || order.tableNumber;
+    const restaurantId = getOrderField(order, 'restaurantId');
+    const status = getOrderField(order, 'orderStatus');
+    const createdBy = getOrderField(order, 'createdBy') || '';
+    const productId = getOrderField(order, 'productId') || '';
+    const productName = getProductName(productId);
+    const tableNumber = getOrderField(order, 'tableNumber');
 
     const matchesRestaurant = selectedRestaurant === 'all' || restaurantId === selectedRestaurant;
     const matchesStatus = selectedStatus === 'all' || status?.toLowerCase() === selectedStatus;
@@ -141,8 +158,8 @@ const OrderManagement = () => {
 
   // Group orders by table
   const groupedOrders = filteredOrders.reduce((acc, order) => {
-    const tableNumber = order.table_number || order.tableNumber;
-    const restaurantId = order.restaurant_id || order.restaurantId;
+    const tableNumber = getOrderField(order, 'tableNumber');
+    const restaurantId = getOrderField(order, 'restaurantId');
     const key = `${restaurantId}-${tableNumber}`;
     
     if (!acc[key]) {
@@ -152,7 +169,10 @@ const OrderManagement = () => {
         restaurantName: getRestaurantName(restaurantId),
         orders: [],
         totalAmount: 0,
-        latestTime: null
+        latestTime: null,
+        customerName: getOrderField(order, 'createdBy'),
+        customerPhone: getOrderField(order, 'customerPhone'),
+        orderNotes: getOrderField(order, 'orderNotes')
       };
     }
     
@@ -161,9 +181,15 @@ const OrderManagement = () => {
     acc[key].orders.push(order);
     acc[key].totalAmount += price * quantity;
     
-    const orderTime = new Date(order.created_at || order.createdAt);
+    const orderTime = new Date(getOrderField(order, 'createdAt'));
     if (!acc[key].latestTime || orderTime > acc[key].latestTime) {
       acc[key].latestTime = orderTime;
+    }
+
+    // Get latest order notes if any
+    const notes = getOrderField(order, 'orderNotes');
+    if (notes && !acc[key].orderNotes) {
+      acc[key].orderNotes = notes;
     }
     
     return acc;
@@ -173,18 +199,30 @@ const OrderManagement = () => {
     return b.latestTime - a.latestTime;
   });
 
+  // Calculate total revenue
+  const totalRevenue = orders.reduce((sum, order) => {
+    const price = order.price || 0;
+    const quantity = order.quantity || 1;
+    return sum + (price * quantity);
+  }, 0);
+
   // Statistics
   const stats = {
     total: orders.length,
-    pending: orders.filter(o => (o.order_status || o.orderStatus)?.toLowerCase() === 'pending').length,
-    preparing: orders.filter(o => (o.order_status || o.orderStatus)?.toLowerCase() === 'preparing').length,
-    ready: orders.filter(o => (o.order_status || o.orderStatus)?.toLowerCase() === 'ready').length,
-    completed: orders.filter(o => ['served', 'completed'].includes((o.order_status || o.orderStatus)?.toLowerCase())).length
+    pending: orders.filter(o => getOrderField(o, 'orderStatus')?.toLowerCase() === 'pending').length,
+    preparing: orders.filter(o => getOrderField(o, 'orderStatus')?.toLowerCase() === 'preparing').length,
+    ready: orders.filter(o => getOrderField(o, 'orderStatus')?.toLowerCase() === 'ready').length,
+    completed: orders.filter(o => ['served', 'completed'].includes(getOrderField(o, 'orderStatus')?.toLowerCase())).length,
+    revenue: totalRevenue
   };
 
   const openOrderDetails = (order) => {
     setSelectedOrder(order);
     setShowOrderModal(true);
+  };
+
+  const handleBack = () => {
+    navigate(-1);
   };
 
   if (loading) {
@@ -200,258 +238,210 @@ const OrderManagement = () => {
     <div className="om-container">
       {/* Header */}
       <header className="om-header">
-        <div className="om-header-content">
-          <div className="om-header-left">
-            <button className="om-back-btn" onClick={() => navigate('/admin')}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back
-            </button>
-            <div className="om-header-title-section">
-              <h1>
-                <span className="om-header-icon">📋</span>
-                Order Management
-              </h1>
-              <p className="om-header-subtitle">Track and manage incoming orders</p>
-            </div>
+        <div className="om-header-left">
+          <button className="om-back-btn" onClick={handleBack}>
+            ← Back
+          </button>
+          <div>
+            <h1>Order Management</h1>
+            <p className="om-subtitle">Real-time order tracking and management</p>
           </div>
-          <div className="om-header-actions">
-            <button className="om-btn-refresh" onClick={fetchOrders}>
-              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh
-            </button>
-          </div>
+        </div>
+        <div className="om-header-actions">
+          <button className="om-refresh-btn" onClick={fetchOrders}>
+            🔄 Refresh
+          </button>
         </div>
       </header>
 
       {/* Stats Cards */}
       <div className="om-stats">
-        <div className="om-stat-card om-stat-total">
-          <div className="om-stat-icon">📦</div>
+        <div className="om-stat-card">
+          <span className="om-stat-icon">📋</span>
           <div className="om-stat-info">
             <span className="om-stat-value">{stats.total}</span>
             <span className="om-stat-label">Total Orders</span>
           </div>
         </div>
         <div className="om-stat-card om-stat-pending">
-          <div className="om-stat-icon">⏳</div>
+          <span className="om-stat-icon">⏳</span>
           <div className="om-stat-info">
             <span className="om-stat-value">{stats.pending}</span>
             <span className="om-stat-label">Pending</span>
           </div>
         </div>
         <div className="om-stat-card om-stat-preparing">
-          <div className="om-stat-icon">👨‍🍳</div>
+          <span className="om-stat-icon">👨‍🍳</span>
           <div className="om-stat-info">
             <span className="om-stat-value">{stats.preparing}</span>
             <span className="om-stat-label">Preparing</span>
           </div>
         </div>
         <div className="om-stat-card om-stat-ready">
-          <div className="om-stat-icon">🍽️</div>
+          <span className="om-stat-icon">🍽️</span>
           <div className="om-stat-info">
             <span className="om-stat-value">{stats.ready}</span>
             <span className="om-stat-label">Ready</span>
           </div>
         </div>
-        <div className="om-stat-card om-stat-completed">
-          <div className="om-stat-icon">✅</div>
+        <div className="om-stat-card om-stat-revenue">
+          <span className="om-stat-icon">💰</span>
           <div className="om-stat-info">
-            <span className="om-stat-value">{stats.completed}</span>
-            <span className="om-stat-label">Completed</span>
+            <span className="om-stat-value">₹{stats.revenue.toFixed(0)}</span>
+            <span className="om-stat-label">Total Revenue</span>
           </div>
         </div>
       </div>
 
       {/* Filters */}
       <div className="om-filters">
-        <div className="om-filters-left">
-          <div className="om-search">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by customer, item, or table..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <button className="om-search-clear" onClick={() => setSearchTerm('')}>
-                ✕
-              </button>
-            )}
-          </div>
-
-          <div className="om-filter-group">
-            <label>Restaurant</label>
-            <select 
-              value={selectedRestaurant} 
-              onChange={(e) => setSelectedRestaurant(e.target.value)}
-            >
-              <option value="all">All Restaurants</option>
-              {restaurants.map(restaurant => (
-                <option key={restaurant.rest_id || restaurant.restId} value={restaurant.rest_id || restaurant.restId}>
-                  {restaurant.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="om-filter-group">
-            <label>Status</label>
-            <select 
-              value={selectedStatus} 
-              onChange={(e) => setSelectedStatus(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="preparing">Preparing</option>
-              <option value="ready">Ready</option>
-              <option value="served">Served</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
+        <div className="om-search-box">
+          <span className="om-search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search by customer, item, or table..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
 
-        <div className="om-filters-right">
+        <div className="om-filter-group">
+          <select
+            value={selectedRestaurant}
+            onChange={(e) => setSelectedRestaurant(e.target.value)}
+          >
+            <option value="all">All Restaurants</option>
+            {restaurants.map(r => (
+              <option key={r.restId} value={r.restId}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="preparing">Preparing</option>
+            <option value="ready">Ready</option>
+            <option value="served">Served</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+
           <div className="om-view-toggle">
             <button 
-              className={`om-view-btn ${viewMode === 'cards' ? 'active' : ''}`}
+              className={viewMode === 'cards' ? 'active' : ''} 
               onClick={() => setViewMode('cards')}
             >
-              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-              Cards
+              🃏 Cards
             </button>
             <button 
-              className={`om-view-btn ${viewMode === 'table' ? 'active' : ''}`}
+              className={viewMode === 'table' ? 'active' : ''} 
               onClick={() => setViewMode('table')}
             >
-              <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-              </svg>
-              Table
+              📊 Table
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Orders */}
       <main className="om-main">
         {filteredOrders.length === 0 ? (
           <div className="om-empty">
-            <div className="om-empty-icon">📭</div>
-            <h3>No Orders Found</h3>
-            <p>There are no orders matching your filters</p>
+            <span>📭</span>
+            <h3>No orders found</h3>
+            <p>Orders will appear here when customers place them</p>
           </div>
         ) : viewMode === 'cards' ? (
-          /* Card View - Grouped by Table */
-          <div className="om-table-groups">
+          <div className="om-cards-grid">
             {sortedTableGroups.map((group) => (
-              <div key={`${group.restaurantId}-${group.tableNumber}`} className="om-table-group">
-                <div className="om-table-group-header">
+              <div key={`${group.restaurantId}-${group.tableNumber}`} className="om-table-card">
+                <div className="om-table-card-header">
                   <div className="om-table-info">
-                    <span className="om-table-number">
-                      <span className="om-table-icon">🪑</span>
-                      Table {group.tableNumber}
-                    </span>
-                    <span className="om-table-restaurant">{group.restaurantName}</span>
+                    <span className="om-table-badge">🪑 Table {group.tableNumber}</span>
+                    <span className="om-restaurant-name">{group.restaurantName}</span>
                   </div>
-                  <div className="om-table-meta">
-                    <span className="om-order-count">{group.orders.length} items</span>
-                    <span className="om-table-total">₹{group.totalAmount.toFixed(2)}</span>
+                  <div className="om-table-total">
+                    <span className="om-total-label">Total</span>
+                    <span className="om-total-amount">₹{group.totalAmount.toFixed(2)}</span>
                   </div>
                 </div>
 
-                <div className="om-orders-list">
+                <div className="om-customer-info">
+                  <div className="om-customer-detail">
+                    <span>👤</span>
+                    <span>{group.customerName || 'Guest'}</span>
+                  </div>
+                  {group.customerPhone && (
+                    <div className="om-customer-detail">
+                      <span>📱</span>
+                      <span>{group.customerPhone}</span>
+                    </div>
+                  )}
+                  <div className="om-customer-detail">
+                    <span>🕐</span>
+                    <span>{getTimeSince(group.latestTime)}</span>
+                  </div>
+                </div>
+
+                {group.orderNotes && (
+                  <div className="om-order-notes">
+                    <span className="om-notes-icon">📝</span>
+                    <span className="om-notes-text">{group.orderNotes}</span>
+                  </div>
+                )}
+
+                <div className="om-order-items">
                   {group.orders.map((order) => {
-                    const orderId = order.order_id || order.orderId;
-                    const productName = order.product_name || order.productName;
+                    const orderId = getOrderField(order, 'orderId');
+                    const productId = getOrderField(order, 'productId');
+                    const productName = getProductName(productId);
                     const quantity = order.quantity || 1;
-                    const portionSize = order.portion_size || order.portionSize;
-                    const status = order.order_status || order.orderStatus;
-                    const createdBy = order.created_by || order.createdBy;
-                    const createdAt = order.created_at || order.createdAt;
+                    const portionSize = getOrderField(order, 'portionSize');
+                    const status = getOrderField(order, 'orderStatus');
                     const price = order.price || 0;
+                    const itemNotes = getOrderField(order, 'itemNotes');
                     const statusInfo = getStatusInfo(status);
 
                     return (
-                      <div key={orderId} className="om-order-card" onClick={() => openOrderDetails(order)}>
-                        <div className="om-order-main">
-                          <div className="om-order-item">
-                            <h4>{productName}</h4>
-                            <div className="om-order-details">
-                              <span className="om-qty">×{quantity}</span>
-                              {portionSize && <span className="om-portion">{portionSize}</span>}
-                              <span className="om-price">₹{(price * quantity).toFixed(2)}</span>
-                            </div>
+                      <div key={orderId} className="om-order-item" onClick={() => openOrderDetails(order)}>
+                        <div className="om-item-main">
+                          <div className="om-item-info">
+                            <span className="om-item-name">{productName}</span>
+                            {portionSize && <span className="om-item-portion">{portionSize}</span>}
+                            {itemNotes && (
+                              <span className="om-item-notes">📝 {itemNotes}</span>
+                            )}
                           </div>
-                          <div className={`om-status-badge ${statusInfo.class}`}>
-                            <span>{statusInfo.icon}</span>
-                            <span>{statusInfo.label}</span>
-                          </div>
+                          <div className="om-item-qty">×{quantity}</div>
+                          <div className="om-item-price">₹{(price * quantity).toFixed(2)}</div>
                         </div>
-                        
-                        <div className="om-order-footer">
-                          <div className="om-order-customer">
-                            <span className="om-customer-icon">👤</span>
-                            <span>{createdBy || 'Guest'}</span>
-                          </div>
-                          <div className="om-order-time">
-                            <span className="om-time-icon">🕐</span>
-                            <span>{getTimeSince(createdAt)}</span>
-                          </div>
-                        </div>
-
-                        {/* Quick Actions */}
-                        <div className="om-quick-actions" onClick={(e) => e.stopPropagation()}>
-                          {status?.toLowerCase() === 'pending' && (
-                            <>
-                              <button 
-                                className="om-action-btn om-action-confirm"
-                                onClick={() => updateOrderStatus(orderId, 'confirmed')}
-                              >
-                                Confirm
-                              </button>
-                              <button 
-                                className="om-action-btn om-action-cancel"
-                                onClick={() => updateOrderStatus(orderId, 'cancelled')}
-                              >
-                                Cancel
-                              </button>
-                            </>
-                          )}
-                          {status?.toLowerCase() === 'confirmed' && (
-                            <button 
-                              className="om-action-btn om-action-prepare"
-                              onClick={() => updateOrderStatus(orderId, 'preparing')}
-                            >
-                              Start Preparing
-                            </button>
-                          )}
-                          {status?.toLowerCase() === 'preparing' && (
-                            <button 
-                              className="om-action-btn om-action-ready"
-                              onClick={() => updateOrderStatus(orderId, 'ready')}
-                            >
-                              Mark Ready
-                            </button>
-                          )}
-                          {status?.toLowerCase() === 'ready' && (
-                            <button 
-                              className="om-action-btn om-action-serve"
-                              onClick={() => updateOrderStatus(orderId, 'served')}
-                            >
-                              Mark Served
-                            </button>
-                          )}
+                        <div className="om-item-status-row">
+                          <span className={`om-status-pill ${statusInfo.class}`}>
+                            {statusInfo.icon} {statusInfo.label}
+                          </span>
+                          <select
+                            value={status}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateOrderStatus(orderId, e.target.value);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="om-quick-status"
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="preparing">Preparing</option>
+                            <option value="ready">Ready</option>
+                            <option value="served">Served</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
                         </div>
                       </div>
                     );
@@ -461,17 +451,16 @@ const OrderManagement = () => {
             ))}
           </div>
         ) : (
-          /* Table View */
-          <div className="om-table-container">
-            <table className="om-table">
+          <div className="om-table-view">
+            <table className="om-data-table">
               <thead>
                 <tr>
-                  <th>Order ID</th>
                   <th>Item</th>
                   <th>Qty</th>
-                  <th>Price</th>
+                  <th>Amount</th>
                   <th>Table</th>
                   <th>Customer</th>
+                  <th>Notes</th>
                   <th>Restaurant</th>
                   <th>Status</th>
                   <th>Time</th>
@@ -479,22 +468,24 @@ const OrderManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map((order) => {
-                  const orderId = order.order_id || order.orderId;
-                  const productName = order.product_name || order.productName;
+                {filteredOrders.map((order, index) => {
+                  const orderId = getOrderField(order, 'orderId');
+                  const productId = getOrderField(order, 'productId');
+                  const productName = getProductName(productId);
                   const quantity = order.quantity || 1;
-                  const portionSize = order.portion_size || order.portionSize;
-                  const status = order.order_status || order.orderStatus;
-                  const createdBy = order.created_by || order.createdBy;
-                  const createdAt = order.created_at || order.createdAt;
+                  const portionSize = getOrderField(order, 'portionSize');
+                  const status = getOrderField(order, 'orderStatus');
+                  const createdBy = getOrderField(order, 'createdBy');
+                  const createdAt = getOrderField(order, 'createdAt');
                   const price = order.price || 0;
-                  const tableNumber = order.table_number || order.tableNumber;
-                  const restaurantId = order.restaurant_id || order.restaurantId;
+                  const tableNumber = getOrderField(order, 'tableNumber');
+                  const restaurantId = getOrderField(order, 'restaurantId');
+                  const itemNotes = getOrderField(order, 'itemNotes');
+                  const orderNotes = getOrderField(order, 'orderNotes');
                   const statusInfo = getStatusInfo(status);
 
                   return (
-                    <tr key={orderId} onClick={() => openOrderDetails(order)}>
-                      <td className="om-cell-id">#{orderId?.slice(-6) || 'N/A'}</td>
+                    <tr key={orderId || index} onClick={() => openOrderDetails(order)}>
                       <td className="om-cell-item">
                         <span className="om-item-name">{productName}</span>
                         {portionSize && <span className="om-item-portion">{portionSize}</span>}
@@ -505,6 +496,13 @@ const OrderManagement = () => {
                         <span className="om-table-badge-sm">🪑 {tableNumber}</span>
                       </td>
                       <td className="om-cell-customer">{createdBy || 'Guest'}</td>
+                      <td className="om-cell-notes">
+                        {(itemNotes || orderNotes) ? (
+                          <span className="om-notes-badge" title={itemNotes || orderNotes}>
+                            📝 {(itemNotes || orderNotes).substring(0, 20)}{(itemNotes || orderNotes).length > 20 ? '...' : ''}
+                          </span>
+                        ) : '-'}
+                      </td>
                       <td className="om-cell-restaurant">{getRestaurantName(restaurantId)}</td>
                       <td className="om-cell-status">
                         <span className={`om-status-pill ${statusInfo.class}`}>
@@ -517,7 +515,7 @@ const OrderManagement = () => {
                       </td>
                       <td className="om-cell-actions" onClick={(e) => e.stopPropagation()}>
                         <select 
-                          value={status}
+                          value={status || 'pending'}
                           onChange={(e) => updateOrderStatus(orderId, e.target.value)}
                           className="om-status-select"
                         >
@@ -546,33 +544,30 @@ const OrderManagement = () => {
             <div className="om-modal-header">
               <h2>Order Details</h2>
               <button className="om-modal-close" onClick={() => setShowOrderModal(false)}>
-                <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                ✕
               </button>
             </div>
 
             <div className="om-modal-body">
               {(() => {
-                const orderId = selectedOrder.order_id || selectedOrder.orderId;
-                const productName = selectedOrder.product_name || selectedOrder.productName;
+                const orderId = getOrderField(selectedOrder, 'orderId');
+                const productName = getOrderField(selectedOrder, 'productName');
                 const quantity = selectedOrder.quantity || 1;
-                const portionSize = selectedOrder.portion_size || selectedOrder.portionSize;
-                const status = selectedOrder.order_status || selectedOrder.orderStatus;
-                const createdBy = selectedOrder.created_by || selectedOrder.createdBy;
-                const createdAt = selectedOrder.created_at || selectedOrder.createdAt;
+                const portionSize = getOrderField(selectedOrder, 'portionSize');
+                const status = getOrderField(selectedOrder, 'orderStatus');
+                const createdBy = getOrderField(selectedOrder, 'createdBy');
+                const createdAt = getOrderField(selectedOrder, 'createdAt');
                 const price = selectedOrder.price || 0;
-                const tableNumber = selectedOrder.table_number || selectedOrder.tableNumber;
-                const restaurantId = selectedOrder.restaurant_id || selectedOrder.restaurantId;
+                const tableNumber = getOrderField(selectedOrder, 'tableNumber');
+                const restaurantId = getOrderField(selectedOrder, 'restaurantId');
+                const customerPhone = getOrderField(selectedOrder, 'customerPhone');
+                const orderNotes = getOrderField(selectedOrder, 'orderNotes');
+                const itemNotes = getOrderField(selectedOrder, 'itemNotes');
                 const statusInfo = getStatusInfo(status);
 
                 return (
                   <>
                     <div className="om-modal-section">
-                      <div className="om-modal-order-id">
-                        <span>Order ID</span>
-                        <span>#{orderId || 'N/A'}</span>
-                      </div>
                       <div className={`om-modal-status ${statusInfo.class}`}>
                         <span>{statusInfo.icon}</span>
                         <span>{statusInfo.label}</span>
@@ -583,7 +578,7 @@ const OrderManagement = () => {
                       <h4>Item Details</h4>
                       <div className="om-modal-item">
                         <div className="om-modal-item-info">
-                          <span className="om-modal-item-name">{productName}</span>
+                          <span className="om-modal-item-name">{productName || 'Unknown Item'}</span>
                           {portionSize && (
                             <span className="om-modal-item-portion">{portionSize}</span>
                           )}
@@ -593,6 +588,13 @@ const OrderManagement = () => {
                           <span className="om-modal-amount">₹{(price * quantity).toFixed(2)}</span>
                         </div>
                       </div>
+
+                      {itemNotes && (
+                        <div className="om-modal-notes">
+                          <span className="om-modal-notes-label">📝 Item Instructions:</span>
+                          <p>{itemNotes}</p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="om-modal-section">
@@ -602,7 +604,7 @@ const OrderManagement = () => {
                           <span className="om-modal-info-icon">🪑</span>
                           <div>
                             <span className="om-modal-info-label">Table</span>
-                            <span className="om-modal-info-value">Table {tableNumber}</span>
+                            <span className="om-modal-info-value">Table {tableNumber || 'N/A'}</span>
                           </div>
                         </div>
                         <div className="om-modal-info-item">
@@ -620,14 +622,37 @@ const OrderManagement = () => {
                           </div>
                         </div>
                         <div className="om-modal-info-item">
+                          <span className="om-modal-info-icon">📱</span>
+                          <div>
+                            <span className="om-modal-info-label">Phone</span>
+                            <span className="om-modal-info-value">{customerPhone || 'N/A'}</span>
+                          </div>
+                        </div>
+                        <div className="om-modal-info-item">
                           <span className="om-modal-info-icon">🕐</span>
                           <div>
                             <span className="om-modal-info-label">Order Time</span>
                             <span className="om-modal-info-value">{formatDateTime(createdAt)}</span>
                           </div>
                         </div>
+                        <div className="om-modal-info-item">
+                          <span className="om-modal-info-icon">💰</span>
+                          <div>
+                            <span className="om-modal-info-label">Amount</span>
+                            <span className="om-modal-info-value om-amount-highlight">₹{(price * quantity).toFixed(2)}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
+
+                    {orderNotes && (
+                      <div className="om-modal-section">
+                        <h4>📝 Customer Notes</h4>
+                        <div className="om-modal-customer-notes">
+                          <p>{orderNotes}</p>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="om-modal-section">
                       <h4>Update Status</h4>

@@ -20,10 +20,8 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             
-            {/* Customer table booking with restaurant context */}
-            <Route path="/restaurant/:restaurantId/table/:tableNumber" element={<TableBooking />} />
-            {/* Legacy route - will show restaurant selection if no restaurantId */}
-            <Route path="/table/:tableNumber" element={<TableBooking />} />
+            {/* Customer ordering - URL: /order/{restaurantId}/{tableNumber} */}
+            <Route path="/order/:restaurantId/:tableNumber" element={<TableBooking />} />
             
             <Route path="/admin" element={
               <ProtectedRoute roles={['ADMIN']}>
