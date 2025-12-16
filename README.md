@@ -160,10 +160,10 @@ This creates an optimized production build in the `build/` directory.
 Generate QR codes for each table with the following URL pattern:
 
 ```
-https://your-domain.com/booking/{restaurantId}/{tableNumber}
+https://your-domain.com/order/{restaurantId}/{tableNumber}
 ```
 
-Example: `https://your-domain.com/booking/rest123/5` for Table 5
+Example: `https://your-domain.com/order/rest123/5` for Table 5
 
 ## 🎯 API Integration
 
