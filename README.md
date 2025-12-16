@@ -149,7 +149,7 @@ This creates an optimized production build in the `build/` directory.
 
 ### For Customers
 
-1. **Scan QR Code**: At your table, scan the QR code (format: `/booking/{restaurantId}/{tableNumber}`)
+1. **Scan QR Code**: At your table, scan the QR code (format: `/order/{restaurantId}/{tableNumber}`)
 2. **Browse Menu**: View available items and filter by category
 3. **Add to Cart**: Select items and portion sizes
 4. **Place Order**: Review cart and submit order to kitchen
