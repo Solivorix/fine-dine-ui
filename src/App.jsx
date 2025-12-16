@@ -9,6 +9,7 @@ import MenuManagement from './pages/MenuManagement';
 import TableBooking from './pages/TableBooking';
 import OrderManagement from './pages/OrderManagement';
 import UserManagement from './pages/UserManagement';
+import KitchenDisplay from './pages/KitchenDisplay';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
@@ -56,6 +57,12 @@ function App() {
             <Route path="/admin/orders" element={
               <ProtectedRoute roles={['ADMIN', 'MANAGER', 'STAFF']}>
                 <OrderManagement />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/admin/kitchen" element={
+              <ProtectedRoute roles={['ADMIN', 'MANAGER', 'STAFF']}>
+                <KitchenDisplay />
               </ProtectedRoute>
             } />
             

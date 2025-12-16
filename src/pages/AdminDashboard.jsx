@@ -138,9 +138,9 @@ const AdminDashboard = () => {
               <span className="nav-icon">📋</span>
               <span>Orders</span>
             </Link>
-            <Link to="/admin/prices" className="nav-item">
-              <span className="nav-icon">💰</span>
-              <span>Pricing</span>
+            <Link to="/admin/kitchen" className="nav-item">
+              <span className="nav-icon">👨‍🍳</span>
+              <span>Kitchen</span>
             </Link>
           </div>
         </nav>
@@ -269,13 +269,13 @@ const AdminDashboard = () => {
               <div className="quick-action-arrow">→</div>
             </Link>
 
-            <Link to="/admin/users" className="quick-action-card">
+            <Link to="/admin/kitchen" className="quick-action-card">
               <div className="quick-action-icon purple">
-                <span>👥</span>
+                <span>👨‍🍳</span>
               </div>
               <div className="quick-action-info">
-                <span className="quick-action-title">Users</span>
-                <span className="quick-action-subtitle">Manage staff</span>
+                <span className="quick-action-title">Kitchen Display</span>
+                <span className="quick-action-subtitle">View live orders</span>
               </div>
               <div className="quick-action-arrow">→</div>
             </Link>
@@ -412,8 +412,8 @@ const AdminDashboard = () => {
             </div>
             <div className="instruction-card">
               <div className="instruction-number">4</div>
-              <h3>Track Orders</h3>
-              <p>View all orders in real-time from the "Orders" section</p>
+              <h3>Track in Kitchen</h3>
+              <p>View and manage orders in real-time from Kitchen Display</p>
             </div>
           </div>
         </section>

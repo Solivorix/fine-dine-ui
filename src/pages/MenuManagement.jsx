@@ -388,7 +388,8 @@ const MenuManagement = () => {
         <div className="mm-header-content">
           <div className="mm-header-left">
             <button className="mm-back-btn" onClick={() => navigate('/admin')}>
-              ← Back
+              <span className="back-icon">←</span>
+              <span className="back-text">Back</span>
             </button>
             <div className="mm-header-title-section">
               <h1>🍽️ Menu Management</h1>

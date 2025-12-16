@@ -147,7 +147,7 @@ const OrderManagement = () => {
         <div className="header-left">
           <button className="btn-back" onClick={handleBack}>
             <span className="back-icon">←</span>
-            <span>Back</span>
+            <span className="back-text">Back</span>
           </button>
           <div className="header-title">
             <h1>Order Management</h1>

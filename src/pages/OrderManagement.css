@@ -65,10 +65,11 @@
 }
 
 .btn-back {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 10px 12px;
   background: var(--bg-light);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -77,17 +78,34 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  flex-grow: 0;
+  white-space: nowrap;
+  position: relative;
+  z-index: 2;
+  opacity: 1;
+  visibility: visible;
 }
 
 .btn-back:hover {
   background: var(--primary-gold-light);
   border-color: var(--primary-gold);
   color: var(--primary-gold-dark);
+  transform: translateY(-1px);
+  opacity: 1;
 }
 
 .back-icon {
   font-size: 18px;
   font-weight: bold;
+  color: var(--text-primary);
+  display: inline-block;
+  opacity: 1;
+  visibility: visible;
+}
+
+.back-text {
+  display: none;
 }
 
 .header-title h1 {
