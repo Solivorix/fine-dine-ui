@@ -1,0 +1,243 @@
+/* KitchenPrintReceipt.css - Kitchen Print Styles */
+
+/* Hide on screen */
+.kitchen-print-receipt {
+  display: none;
+}
+
+/* Print Styles */
+@media print {
+  /* Hide everything except kitchen receipt */
+  body * {
+    visibility: hidden;
+  }
+
+  .kitchen-print-receipt,
+  .kitchen-print-receipt * {
+    visibility: visible;
+  }
+
+  .kitchen-print-receipt {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    max-width: 100%;
+    margin: 0;
+    padding: 8mm;
+    font-family: 'Arial', 'Helvetica', sans-serif;
+    font-size: 14pt;
+    color: #000;
+    background: #fff;
+    page-break-after: always;
+  }
+
+  /* Header */
+  .kitchen-header {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .kitchen-header h1 {
+    font-size: 22pt;
+    font-weight: bold;
+    margin: 0 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    background: #000;
+    color: #fff;
+    padding: 10px;
+  }
+
+  .order-id-large {
+    font-size: 18pt;
+    font-weight: bold;
+    margin: 8px 0;
+  }
+
+  /* Dividers */
+  .print-divider {
+    border-top: 2px dashed #000;
+    margin: 10px 0;
+  }
+
+  .print-divider-thick {
+    border-top: 4px solid #000;
+    margin: 12px 0;
+  }
+
+  /* Critical Section */
+  .critical-section {
+    background: #000;
+    color: #fff;
+    padding: 12px;
+    margin: 10px 0;
+    text-align: center;
+  }
+
+  .table-info-large {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 26pt;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+
+  .table-info-large .label {
+    font-size: 18pt;
+  }
+
+  .table-info-large .value {
+    font-size: 32pt;
+  }
+
+  .time-info {
+    font-size: 12pt;
+    opacity: 0.9;
+  }
+
+  /* Info Rows */
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 8px 0;
+    font-size: 13pt;
+    line-height: 1.5;
+  }
+
+  .info-row .label {
+    font-weight: bold;
+  }
+
+  .info-row .value {
+    text-align: right;
+    max-width: 60%;
+    word-wrap: break-word;
+  }
+
+  /* Item Section */
+  .item-section {
+    margin: 12px 0;
+  }
+
+  .item-section h2 {
+    font-size: 16pt;
+    font-weight: bold;
+    margin: 0 0 10px 0;
+    text-transform: uppercase;
+    border-bottom: 3px solid #000;
+    padding-bottom: 6px;
+  }
+
+  .item-main-info {
+    background: #f5f5f5;
+    padding: 12px;
+    border: 3px solid #000;
+  }
+
+  .item-name-large {
+    font-size: 20pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    line-height: 1.3;
+  }
+
+  .item-details-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 0;
+    font-size: 15pt;
+  }
+
+  .quantity-large,
+  .portion-large {
+    font-size: 15pt;
+  }
+
+  .quantity-large strong,
+  .portion-large strong {
+    font-size: 18pt;
+    font-weight: bold;
+  }
+
+  .price-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 2px solid #000;
+    font-size: 14pt;
+  }
+
+  .total-price {
+    font-size: 18pt;
+    font-weight: bold;
+  }
+
+  /* Notes Section */
+  .notes-section {
+    margin: 12px 0;
+  }
+
+  .notes-section h2 {
+    font-size: 16pt;
+    font-weight: bold;
+    margin: 0 0 10px 0;
+    text-transform: uppercase;
+    background: #ffeb3b;
+    color: #000;
+    padding: 8px;
+    text-align: center;
+  }
+
+  .note-box {
+    background: #fff9c4;
+    border: 3px solid #fbc02d;
+    padding: 10px;
+    margin: 8px 0;
+  }
+
+  .note-label {
+    font-size: 13pt;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+
+  .note-content {
+    font-size: 14pt;
+    line-height: 1.4;
+    font-weight: bold;
+    color: #000;
+  }
+
+  /* Footer */
+  .kitchen-footer {
+    text-align: center;
+    margin-top: 15px;
+  }
+
+  .priority-badge {
+    background: #f44336;
+    color: #fff;
+    font-size: 16pt;
+    font-weight: bold;
+    padding: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Ensure crisp printing */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Page break control */
+  .kitchen-print-receipt {
+    page-break-inside: avoid;
+  }
+}

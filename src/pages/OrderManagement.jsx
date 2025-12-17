@@ -14,6 +14,7 @@ const OrderManagement = () => {
   const [selectedRestaurant, setSelectedRestaurant] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
 
   const ORDER_STATUSES = [
     { value: 'pending', label: 'Pending', color: '#f59e0b', bg: '#fef3c7' },
@@ -103,6 +104,37 @@ const OrderManagement = () => {
     });
   };
 
+  // GROUP ORDERS BY TABLE AND PHONE
+  const groupOrders = (ordersList) => {
+    const groups = {};
+    
+    ordersList.forEach(order => {
+      // Create unique key: tableNumber + customerPhone (or createdBy if no phone)
+      const phone = order.customerPhone || 'no-phone';
+      const table = order.tableNumber || 'no-table';
+      const groupKey = `table-${table}-phone-${phone}`;
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          key: groupKey,
+          tableNumber: order.tableNumber,
+          customerName: order.createdBy || 'Guest',
+          customerPhone: order.customerPhone,
+          restaurantId: order.restaurantId,
+          orders: [],
+          firstOrderTime: order.createdAt
+        };
+      }
+      
+      groups[groupKey].orders.push(order);
+    });
+    
+    // Convert to array and sort by most recent first
+    return Object.values(groups).sort((a, b) => 
+      new Date(b.firstOrderTime) - new Date(a.firstOrderTime)
+    );
+  };
+
   const filteredOrders = orders.filter(order => {
     const matchesRestaurant = selectedRestaurant === 'all' || 
       order.restaurantId === selectedRestaurant;
@@ -116,6 +148,26 @@ const OrderManagement = () => {
       order.tableNumber?.toString().includes(searchTerm);
     return matchesRestaurant && matchesStatus && matchesSearch;
   });
+
+  const orderGroups = groupOrders(filteredOrders);
+
+  const toggleGroup = (groupKey) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupKey)) {
+        newSet.delete(groupKey);
+      } else {
+        newSet.add(groupKey);
+      }
+      return newSet;
+    });
+  };
+
+  const calculateGroupTotal = (groupOrders) => {
+    return groupOrders.reduce((sum, order) => {
+      return sum + ((order.price || 0) * (order.quantity || 1));
+    }, 0);
+  };
 
   const stats = {
     total: orders.length,
@@ -264,117 +316,166 @@ const OrderManagement = () => {
       </div>
 
       <div className="orders-container">
-        {filteredOrders.length === 0 ? (
+        {orderGroups.length === 0 ? (
           <div className="empty-state">
             <span>📋</span>
             <p>No orders found</p>
           </div>
         ) : (
-          <div className="orders-table-wrapper">
-            <table className="orders-table">
-              <thead>
-                <tr>
-                  <th>Order Info</th>
-                  <th>Restaurant</th>
-                  <th>Item</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Notes</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map(order => {
-                  const statusInfo = getStatusInfo(order.orderStatus);
-                  const hasNotes = order.orderNotes || order.itemNotes;
-                  return (
-                    <tr key={order.orderId}>
-                      <td>
-                        <div className="order-info">
-                          <div className="order-customer">
-                            <strong>{order.createdBy || 'Guest'}</strong>
-                            {order.customerPhone && (
-                              <span className="order-phone">{order.customerPhone}</span>
-                            )}
-                          </div>
-                          <div className="order-meta">
-                            <span className="table-badge">Table {order.tableNumber}</span>
-                            <span className="order-time">{formatDate(order.createdAt)}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="restaurant-name">
-                          {getRestaurantName(order.restaurantId)}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="item-info">
-                          <span className="item-name">{getItemName(order.productId)}</span>
-                          {order.portionSize && (
-                            <span className="portion-size">{order.portionSize}</span>
+          <div className="order-groups-list">
+            {orderGroups.map(group => {
+              const isExpanded = expandedGroups.has(group.key);
+              const totalAmount = calculateGroupTotal(group.orders);
+              const totalItems = group.orders.length;
+              
+              return (
+                <div key={group.key} className="order-group-card">
+                  {/* Group Header - Click to expand/collapse */}
+                  <div 
+                    className="group-header"
+                    onClick={() => toggleGroup(group.key)}
+                  >
+                    <div className="group-info-main">
+                      <div className="group-customer">
+                        <span className="customer-icon">👤</span>
+                        <div className="customer-details">
+                          <span className="customer-name">{group.customerName}</span>
+                          {group.customerPhone && (
+                            <span className="customer-phone">📱 {group.customerPhone}</span>
                           )}
                         </div>
-                      </td>
-                      <td>
-                        <span className="quantity">{order.quantity || 1}</span>
-                      </td>
-                      <td>
-                        <span className="price">₹{order.price || 0}</span>
-                      </td>
-                      <td>
-                        {hasNotes ? (
-                          <div className="inline-notes">
-                            {order.orderNotes && (
-                              <div className="inline-note">
-                                <span className="note-label">📝</span>
-                                <span className="note-text">{order.orderNotes}</span>
-                              </div>
-                            )}
-                            {order.itemNotes && (
-                              <div className="inline-note">
-                                <span className="note-label">🍴</span>
-                                <span className="note-text">{order.itemNotes}</span>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="no-notes">—</span>
-                        )}
-                      </td>
-                      <td>
-                        <select
-                          className="status-select"
-                          value={order.orderStatus || 'pending'}
-                          onChange={(e) => handleStatusChange(order.orderId, e.target.value)}
-                          style={{ 
-                            backgroundColor: statusInfo.bg, 
-                            color: statusInfo.color,
-                            borderColor: statusInfo.color
-                          }}
-                        >
-                          {ORDER_STATUSES.map(s => (
-                            <option key={s.value} value={s.value}>{s.label}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <div className="action-buttons">
-                          <button 
-                            className="btn-action btn-delete"
-                            onClick={() => handleDeleteOrder(order.orderId)}
-                            title="Delete order"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </div>
+                      
+                      <div className="group-table-badge">
+                        <span className="table-icon">🍽️</span>
+                        <span className="table-text">Table {group.tableNumber}</span>
+                      </div>
+                    </div>
+
+                    <div className="group-summary">
+                      <div className="summary-item">
+                        <span className="summary-label">Orders:</span>
+                        <span className="summary-value">{totalItems}</span>
+                      </div>
+                      <div className="summary-item">
+                        <span className="summary-label">Total:</span>
+                        <span className="summary-value">₹{totalAmount}</span>
+                      </div>
+                      <div className="summary-item">
+                        <span className="summary-label">Restaurant:</span>
+                        <span className="summary-value">{getRestaurantName(group.restaurantId)}</span>
+                      </div>
+                    </div>
+
+                    <div className="group-expand-icon">
+                      {isExpanded ? '▼' : '▶'}
+                    </div>
+                  </div>
+
+                  {/* Group Orders - Show when expanded */}
+                  {isExpanded && (
+                    <div className="group-orders">
+                      <table className="orders-table-grouped">
+                        <thead>
+                          <tr>
+                            <th>Order ID</th>
+                            <th>Item</th>
+                            <th>Qty</th>
+                            <th>Price</th>
+                            <th>Notes</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.orders.map(order => {
+                            const statusInfo = getStatusInfo(order.orderStatus);
+                            const hasNotes = order.orderNotes || order.itemNotes;
+                            
+                            return (
+                              <tr key={order.orderId}>
+                                <td>
+                                  <span className="order-id-badge">#{order.orderId}</span>
+                                </td>
+                                <td>
+                                  <div className="item-info">
+                                    <span className="item-name">{getItemName(order.productId)}</span>
+                                    {order.portionSize && (
+                                      <span className="portion-size">{order.portionSize}</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td>
+                                  <span className="quantity">{order.quantity || 1}</span>
+                                </td>
+                                <td>
+                                  <span className="price">₹{order.price || 0}</span>
+                                </td>
+                                <td>
+                                  {hasNotes ? (
+                                    <div className="inline-notes">
+                                      {order.orderNotes && (
+                                        <div className="inline-note">
+                                          <span className="note-label">📝</span>
+                                          <span className="note-text">{order.orderNotes}</span>
+                                        </div>
+                                      )}
+                                      {order.itemNotes && (
+                                        <div className="inline-note">
+                                          <span className="note-label">🍴</span>
+                                          <span className="note-text">{order.itemNotes}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="no-notes">—</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <select
+                                    className="status-select"
+                                    value={order.orderStatus || 'pending'}
+                                    onChange={(e) => handleStatusChange(order.orderId, e.target.value)}
+                                    style={{ 
+                                      backgroundColor: statusInfo.bg, 
+                                      color: statusInfo.color,
+                                      borderColor: statusInfo.color
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {ORDER_STATUSES.map(s => (
+                                      <option key={s.value} value={s.value}>{s.label}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td>
+                                  <span className="order-time">{formatDate(order.createdAt)}</span>
+                                </td>
+                                <td>
+                                  <div className="action-buttons">
+                                    <button 
+                                      className="btn-action btn-delete"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteOrder(order.orderId);
+                                      }}
+                                      title="Delete order"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
