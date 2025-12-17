@@ -17,11 +17,24 @@ const KitchenDisplay = () => {
   
   // AUTO-PRINT CONTROLS
   const [autoPrintEnabled, setAutoPrintEnabled] = useState(() => {
-    // Load from localStorage
     const saved = localStorage.getItem('autoPrintEnabled');
-    return saved !== null ? JSON.parse(saved) : true; // Default: ON
+    return saved !== null ? JSON.parse(saved) : true;
   });
+  
+  // AUTO-STATUS PROGRESSION CONTROLS
+  const [autoStatusEnabled, setAutoStatusEnabled] = useState(() => {
+    const saved = localStorage.getItem('autoStatusEnabled');
+    return saved !== null ? JSON.parse(saved) : false; // Default: OFF for safety
+  });
+  
   const [autoPrintedOrders, setAutoPrintedOrders] = useState(new Set());
+
+  // AUTO-STATUS TIME INTERVALS (in minutes)
+  const STATUS_TIMINGS = {
+    confirmed_to_preparing: 2,   // 2 minutes after confirmation
+    preparing_to_ready: 15,       // 15 minutes of cooking
+    ready_to_served: 5            // 5 minutes to serve
+  };
 
   const STATUS_CONFIG = [
     { value: 'pending', label: 'New Orders', color: '#f59e0b', bg: '#fef3c7', icon: '🆕' },
@@ -30,10 +43,14 @@ const KitchenDisplay = () => {
     { value: 'ready', label: 'Ready', color: '#10b981', bg: '#d1fae5', icon: '🍽️' }
   ];
 
-  // Save auto-print preference to localStorage
+  // Save preferences to localStorage
   useEffect(() => {
     localStorage.setItem('autoPrintEnabled', JSON.stringify(autoPrintEnabled));
   }, [autoPrintEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('autoStatusEnabled', JSON.stringify(autoStatusEnabled));
+  }, [autoStatusEnabled]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -76,10 +93,7 @@ const KitchenDisplay = () => {
 
   // AUTO-PRINT: Only runs if autoPrintEnabled is true
   useEffect(() => {
-    if (!autoPrintEnabled) {
-      console.log('Auto-print is disabled');
-      return;
-    }
+    if (!autoPrintEnabled) return;
 
     const checkAutoPrint = setInterval(() => {
       orders.forEach(order => {
@@ -96,6 +110,39 @@ const KitchenDisplay = () => {
 
     return () => clearInterval(checkAutoPrint);
   }, [orders, autoPrintedOrders, autoPrintEnabled]);
+
+  // AUTO-STATUS PROGRESSION: Only runs if both auto-print AND auto-status are enabled
+  useEffect(() => {
+    if (!autoPrintEnabled || !autoStatusEnabled) return;
+
+    const checkAutoStatus = setInterval(() => {
+      orders.forEach(order => {
+        const orderStatus = order.orderStatus || order.order_status || 'pending';
+        const statusChangeTime = order.statusChangedAt || order.createdAt;
+        const minutesSinceChange = getMinutesSince(statusChangeTime);
+
+        // confirmed → preparing
+        if (orderStatus === 'confirmed' && minutesSinceChange >= STATUS_TIMINGS.confirmed_to_preparing) {
+          console.log('🤖 AUTO-STATUS: confirmed → preparing for order:', order.orderId);
+          handleStatusChange(order.orderId, 'preparing');
+        }
+        
+        // preparing → ready
+        else if (orderStatus === 'preparing' && minutesSinceChange >= STATUS_TIMINGS.preparing_to_ready) {
+          console.log('🤖 AUTO-STATUS: preparing → ready for order:', order.orderId);
+          handleStatusChange(order.orderId, 'ready');
+        }
+        
+        // ready → served
+        else if (orderStatus === 'ready' && minutesSinceChange >= STATUS_TIMINGS.ready_to_served) {
+          console.log('🤖 AUTO-STATUS: ready → served for order:', order.orderId);
+          handleMarkServed(order.orderId);
+        }
+      });
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(checkAutoStatus);
+  }, [orders, autoPrintEnabled, autoStatusEnabled]);
 
   const getItemDetails = (productId) => {
     return items.find(i => 
@@ -133,7 +180,45 @@ const KitchenDisplay = () => {
     return diffMins < 2;
   };
 
-  // MANUAL status change - always available
+  const getMinutesSince = (dateStr) => {
+    if (!dateStr) return 0;
+    const diffMs = new Date() - new Date(dateStr);
+    return Math.floor(diffMs / 60000);
+  };
+
+  // Calculate time remaining until next auto-status change
+  const getTimeUntilNextStatus = (order) => {
+    if (!autoPrintEnabled || !autoStatusEnabled) return null;
+    
+    const orderStatus = order.orderStatus || order.order_status || 'pending';
+    const statusChangeTime = order.statusChangedAt || order.createdAt;
+    const minutesSinceChange = getMinutesSince(statusChangeTime);
+    
+    let targetMinutes = 0;
+    let nextStatus = '';
+    
+    if (orderStatus === 'confirmed') {
+      targetMinutes = STATUS_TIMINGS.confirmed_to_preparing;
+      nextStatus = 'Preparing';
+    } else if (orderStatus === 'preparing') {
+      targetMinutes = STATUS_TIMINGS.preparing_to_ready;
+      nextStatus = 'Ready';
+    } else if (orderStatus === 'ready') {
+      targetMinutes = STATUS_TIMINGS.ready_to_served;
+      nextStatus = 'Served';
+    }
+    
+    const remainingMinutes = targetMinutes - minutesSinceChange;
+    
+    if (remainingMinutes <= 0) return null;
+    
+    return {
+      minutes: remainingMinutes,
+      seconds: 60 - (Math.floor((new Date() - new Date(statusChangeTime)) / 1000) % 60),
+      nextStatus
+    };
+  };
+
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       await orderAPI.updateStatus(orderId, newStatus);
@@ -141,7 +226,12 @@ const KitchenDisplay = () => {
       setOrders(prevOrders => 
         prevOrders.map(order => 
           order.orderId === orderId 
-            ? { ...order, orderStatus: newStatus, order_status: newStatus }
+            ? { 
+                ...order, 
+                orderStatus: newStatus, 
+                order_status: newStatus,
+                statusChangedAt: new Date().toISOString()
+              }
             : order
         )
       );
@@ -165,7 +255,6 @@ const KitchenDisplay = () => {
     }
   };
 
-  // AUTO-PRINT: Automatically print when timer expires
   const handleAutoPrint = (order) => {
     const groups = groupOrders(orders);
     const group = groups.find(g => 
@@ -180,20 +269,16 @@ const KitchenDisplay = () => {
         return newSet;
       });
       
-      handlePrintTableOrder(group, true); // Auto-print
+      handlePrintTableOrder(group, true);
       
-      // Auto-confirm if auto-print is enabled
-      if (autoPrintEnabled) {
-        group.orders.forEach(o => {
-          if (o.orderStatus === 'pending' || !o.orderStatus) {
-            handleStatusChange(o.orderId, 'confirmed');
-          }
-        });
-      }
+      group.orders.forEach(o => {
+        if (o.orderStatus === 'pending' || !o.orderStatus) {
+          handleStatusChange(o.orderId, 'confirmed');
+        }
+      });
     }
   };
 
-  // MANUAL or AUTO print
   const handlePrintTableOrder = (group, isAutoPrint = false) => {
     const restaurant = restaurants.find(r => 
       (r.rest_id || r.restId) === group.restaurantId
@@ -280,6 +365,17 @@ const KitchenDisplay = () => {
               border-radius: 5px;
             }
             `}
+            ${autoStatusEnabled ? `
+            .auto-workflow-badge {
+              text-align: center;
+              background: #FF9800;
+              color: white;
+              padding: 6px;
+              margin-bottom: 10px;
+              font-size: 10pt;
+              border-radius: 5px;
+            }
+            ` : ''}
             .table-info {
               text-align: center;
               background: #000;
@@ -429,6 +525,11 @@ const KitchenDisplay = () => {
           ${isAutoPrint ? 
             '<div class="auto-print-badge">⚡ AUTO-PRINTED</div>' : 
             '<div class="manual-print-badge">👆 MANUAL PRINT</div>'
+          }
+
+          ${autoStatusEnabled ? 
+            '<div class="auto-workflow-badge">🤖 AUTO-WORKFLOW ENABLED</div>' : 
+            ''
           }
           
           <div class="table-info">
@@ -595,12 +696,14 @@ const KitchenDisplay = () => {
           </button>
           <div className="kds-title-section">
             <h1>Kitchen Display</h1>
-            <p className="kds-subtitle">Active orders • Table grouped</p>
+            <p className="kds-subtitle">
+              {autoStatusEnabled ? 'Fully automated workflow 🤖' : 'Active orders • Table grouped'}
+            </p>
           </div>
         </div>
 
         <div className="kds-header-right">
-          {/* AUTO-PRINT TOGGLE SWITCH */}
+          {/* AUTO-PRINT TOGGLE */}
           <div className="auto-print-toggle">
             <label className="toggle-label">
               <span className="toggle-text">Auto-Print:</span>
@@ -616,6 +719,28 @@ const KitchenDisplay = () => {
                 {autoPrintEnabled ? '⚡ ON' : 'OFF'}
               </span>
             </label>
+          </div>
+
+          {/* AUTO-STATUS TOGGLE */}
+          <div className="auto-status-toggle">
+            <label className="toggle-label">
+              <span className="toggle-text">Auto-Status:</span>
+              <div className="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  checked={autoStatusEnabled}
+                  onChange={(e) => setAutoStatusEnabled(e.target.checked)}
+                  disabled={!autoPrintEnabled}
+                />
+                <span className="toggle-slider"></span>
+              </div>
+              <span className={`toggle-status ${autoStatusEnabled ? 'on' : 'off'}`}>
+                {autoStatusEnabled ? '🤖 ON' : 'OFF'}
+              </span>
+            </label>
+            {!autoPrintEnabled && (
+              <span className="toggle-disabled-hint">Enable Auto-Print first</span>
+            )}
           </div>
 
           <select
@@ -667,8 +792,18 @@ const KitchenDisplay = () => {
 
       <div className="kds-last-update">
         Last updated: {lastUpdate.toLocaleTimeString('en-IN')} • 
-        Auto-print: {autoPrintEnabled ? ' ON ⚡' : ' OFF'}
+        Auto-print: {autoPrintEnabled ? ' ON ⚡' : ' OFF'} • 
+        Auto-status: {autoStatusEnabled ? ' ON 🤖' : ' OFF'}
       </div>
+
+      {autoStatusEnabled && (
+        <div className="auto-status-info">
+          <span>🤖 Automatic workflow:</span>
+          <span>Confirmed → Preparing (2m)</span>
+          <span>Preparing → Ready (15m)</span>
+          <span>Ready → Served (5m)</span>
+        </div>
+      )}
 
       <div className="kds-content">
         {groupedByStatus.map(statusConfig => {
@@ -704,6 +839,7 @@ const KitchenDisplay = () => {
                           <span className="table-icon">🍽️</span>
                           <span className="table-text">Table {group.tableNumber}</span>
                           {wasAutoPrinted && autoPrintEnabled && <span className="auto-printed-badge">⚡</span>}
+                          {autoStatusEnabled && <span className="auto-status-badge">🤖</span>}
                         </div>
 
                         <div className="group-customer-info">
@@ -752,7 +888,6 @@ const KitchenDisplay = () => {
                         </div>
                       )}
 
-                      {/* MANUAL PRINT BUTTON - Always available */}
                       {isExpanded && (
                         <div className="group-actions">
                           <button 
@@ -775,6 +910,7 @@ const KitchenDisplay = () => {
                             const orderStatus = order.orderStatus || order.order_status || 'pending';
                             const currentStatusConfig = STATUS_CONFIG.find(s => s.value === orderStatus);
                             const withinModWindow = isWithinModificationWindow(order.createdAt);
+                            const timeUntilNext = getTimeUntilNextStatus(order);
 
                             return (
                               <div 
@@ -827,7 +963,13 @@ const KitchenDisplay = () => {
                                   </div>
                                 )}
 
-                                {/* MANUAL STATUS CONTROLS - Always available */}
+                                {/* AUTO-STATUS COUNTDOWN */}
+                                {timeUntilNext && (
+                                  <div className="auto-status-countdown">
+                                    🤖 Auto-change to "{timeUntilNext.nextStatus}" in {timeUntilNext.minutes}m {timeUntilNext.seconds}s
+                                  </div>
+                                )}
+
                                 <div className="kds-order-actions">
                                   {statusConfig.value === 'pending' && (
                                     <button 
