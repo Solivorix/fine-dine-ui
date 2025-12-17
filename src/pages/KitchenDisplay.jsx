@@ -14,6 +14,14 @@ const KitchenDisplay = () => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
+  
+  // AUTO-PRINT CONTROLS
+  const [autoPrintEnabled, setAutoPrintEnabled] = useState(() => {
+    // Load from localStorage
+    const saved = localStorage.getItem('autoPrintEnabled');
+    return saved !== null ? JSON.parse(saved) : true; // Default: ON
+  });
+  const [autoPrintedOrders, setAutoPrintedOrders] = useState(new Set());
 
   const STATUS_CONFIG = [
     { value: 'pending', label: 'New Orders', color: '#f59e0b', bg: '#fef3c7', icon: '🆕' },
@@ -21,6 +29,11 @@ const KitchenDisplay = () => {
     { value: 'preparing', label: 'In Kitchen', color: '#8b5cf6', bg: '#ede9fe', icon: '👨‍🍳' },
     { value: 'ready', label: 'Ready', color: '#10b981', bg: '#d1fae5', icon: '🍽️' }
   ];
+
+  // Save auto-print preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('autoPrintEnabled', JSON.stringify(autoPrintEnabled));
+  }, [autoPrintEnabled]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -61,6 +74,29 @@ const KitchenDisplay = () => {
     return () => clearInterval(interval);
   }, [autoRefresh, fetchData]);
 
+  // AUTO-PRINT: Only runs if autoPrintEnabled is true
+  useEffect(() => {
+    if (!autoPrintEnabled) {
+      console.log('Auto-print is disabled');
+      return;
+    }
+
+    const checkAutoPrint = setInterval(() => {
+      orders.forEach(order => {
+        if (
+          (order.orderStatus === 'pending' || !order.orderStatus) &&
+          !autoPrintedOrders.has(order.orderId) &&
+          !isWithinModificationWindow(order.createdAt)
+        ) {
+          console.log('🖨️ AUTO-PRINT triggered for order:', order.orderId);
+          handleAutoPrint(order);
+        }
+      });
+    }, 5000);
+
+    return () => clearInterval(checkAutoPrint);
+  }, [orders, autoPrintedOrders, autoPrintEnabled]);
+
   const getItemDetails = (productId) => {
     return items.find(i => 
       (i.itemId || i.productId) === productId
@@ -97,6 +133,7 @@ const KitchenDisplay = () => {
     return diffMins < 2;
   };
 
+  // MANUAL status change - always available
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       await orderAPI.updateStatus(orderId, newStatus);
@@ -128,15 +165,42 @@ const KitchenDisplay = () => {
     }
   };
 
-  // FIX #3 & #4: Print entire table order with improved layout
-  const handlePrintTableOrder = (group) => {
+  // AUTO-PRINT: Automatically print when timer expires
+  const handleAutoPrint = (order) => {
+    const groups = groupOrders(orders);
+    const group = groups.find(g => 
+      g.orders.some(o => o.orderId === order.orderId)
+    );
+    
+    if (group) {
+      const groupOrderIds = group.orders.map(o => o.orderId);
+      setAutoPrintedOrders(prev => {
+        const newSet = new Set(prev);
+        groupOrderIds.forEach(id => newSet.add(id));
+        return newSet;
+      });
+      
+      handlePrintTableOrder(group, true); // Auto-print
+      
+      // Auto-confirm if auto-print is enabled
+      if (autoPrintEnabled) {
+        group.orders.forEach(o => {
+          if (o.orderStatus === 'pending' || !o.orderStatus) {
+            handleStatusChange(o.orderId, 'confirmed');
+          }
+        });
+      }
+    }
+  };
+
+  // MANUAL or AUTO print
+  const handlePrintTableOrder = (group, isAutoPrint = false) => {
     const restaurant = restaurants.find(r => 
       (r.rest_id || r.restId) === group.restaurantId
     );
 
     const printWindow = window.open('', '', 'width=800,height=600');
     
-    // Calculate totals
     let subtotal = 0;
     const itemsHTML = group.orders.map(order => {
       const item = getItemDetails(order.productId);
@@ -169,17 +233,8 @@ const KitchenDisplay = () => {
         <head>
           <title>Kitchen Order - Table ${group.tableNumber}</title>
           <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            
-            @page {
-              size: 80mm auto;
-              margin: 5mm;
-            }
-            
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            @page { size: 80mm auto; margin: 5mm; }
             body {
               font-family: 'Courier New', monospace;
               max-width: 80mm;
@@ -189,7 +244,6 @@ const KitchenDisplay = () => {
               font-size: 12pt;
               line-height: 1.4;
             }
-            
             .header {
               text-align: center;
               background: #000;
@@ -198,18 +252,34 @@ const KitchenDisplay = () => {
               margin-bottom: 15px;
               border-radius: 5px;
             }
-            
             .header h1 {
               font-size: 18pt;
               font-weight: bold;
               letter-spacing: 2px;
               margin-bottom: 5px;
             }
-            
-            .header .icon {
-              font-size: 24pt;
+            .header .icon { font-size: 24pt; }
+            ${isAutoPrint ? `
+            .auto-print-badge {
+              text-align: center;
+              background: #4CAF50;
+              color: white;
+              padding: 8px;
+              margin-bottom: 10px;
+              font-weight: bold;
+              border-radius: 5px;
             }
-            
+            ` : `
+            .manual-print-badge {
+              text-align: center;
+              background: #2196F3;
+              color: white;
+              padding: 8px;
+              margin-bottom: 10px;
+              font-weight: bold;
+              border-radius: 5px;
+            }
+            `}
             .table-info {
               text-align: center;
               background: #000;
@@ -218,47 +288,28 @@ const KitchenDisplay = () => {
               margin: 15px 0;
               border-radius: 5px;
             }
-            
             .table-number {
               font-size: 32pt;
               font-weight: bold;
               margin-bottom: 8px;
               letter-spacing: 1px;
             }
-            
-            .table-time {
-              font-size: 11pt;
-              opacity: 0.9;
-            }
-            
-            .divider {
-              border-top: 2px dashed #333;
-              margin: 12px 0;
-            }
-            
-            .divider-thick {
-              border-top: 3px solid #000;
-              margin: 15px 0;
-            }
-            
+            .table-time { font-size: 11pt; opacity: 0.9; }
+            .divider { border-top: 2px dashed #333; margin: 12px 0; }
+            .divider-thick { border-top: 3px solid #000; margin: 15px 0; }
             .info-section {
               margin: 12px 0;
               padding: 10px;
               background: #f5f5f5;
               border-radius: 5px;
             }
-            
             .info-row {
               display: flex;
               justify-content: space-between;
               margin: 6px 0;
               font-size: 11pt;
             }
-            
-            .info-label {
-              font-weight: bold;
-            }
-            
+            .info-label { font-weight: bold; }
             .items-header {
               background: #000;
               color: #fff;
@@ -269,7 +320,6 @@ const KitchenDisplay = () => {
               margin: 15px 0 10px 0;
               letter-spacing: 1px;
             }
-            
             .order-item {
               border: 2px solid #ddd;
               padding: 12px;
@@ -277,34 +327,29 @@ const KitchenDisplay = () => {
               background: #fafafa;
               border-radius: 5px;
             }
-            
             .item-header {
               display: flex;
               justify-content: space-between;
               align-items: baseline;
               margin-bottom: 8px;
             }
-            
             .item-name {
               font-size: 15pt;
               font-weight: bold;
               flex: 1;
               line-height: 1.3;
             }
-            
             .item-price {
               font-size: 14pt;
               font-weight: bold;
               margin-left: 10px;
             }
-            
             .item-details {
               display: flex;
               gap: 8px;
               flex-wrap: wrap;
               margin: 8px 0;
             }
-            
             .detail-badge {
               background: #e0e0e0;
               padding: 4px 10px;
@@ -312,7 +357,6 @@ const KitchenDisplay = () => {
               font-size: 10pt;
               font-weight: 600;
             }
-            
             .item-notes {
               margin-top: 10px;
               padding: 10px;
@@ -320,27 +364,23 @@ const KitchenDisplay = () => {
               border-left: 4px solid #fbc02d;
               border-radius: 3px;
             }
-            
             .note-line {
               margin: 4px 0;
               font-size: 10pt;
               line-height: 1.4;
             }
-            
             .summary-section {
               margin: 15px 0;
               padding: 12px;
               background: #f0f0f0;
               border-radius: 5px;
             }
-            
             .summary-row {
               display: flex;
               justify-content: space-between;
               margin: 6px 0;
               font-size: 12pt;
             }
-            
             .total-row {
               display: flex;
               justify-content: space-between;
@@ -350,12 +390,7 @@ const KitchenDisplay = () => {
               font-size: 16pt;
               font-weight: bold;
             }
-            
-            .footer {
-              text-align: center;
-              margin-top: 15px;
-            }
-            
+            .footer { text-align: center; margin-top: 15px; }
             .priority-banner {
               background: #f44336;
               color: #fff;
@@ -366,12 +401,7 @@ const KitchenDisplay = () => {
               letter-spacing: 1px;
               border-radius: 5px;
             }
-            
-            .no-print {
-              margin-top: 20px;
-              text-align: center;
-            }
-            
+            .no-print { margin-top: 20px; text-align: center; }
             .no-print button {
               padding: 12px 24px;
               font-size: 14pt;
@@ -383,18 +413,10 @@ const KitchenDisplay = () => {
               color: white;
               font-weight: bold;
             }
-            
-            .no-print button:hover {
-              background: #1976D2;
-            }
-            
+            .no-print button:hover { background: #1976D2; }
             @media print {
-              body {
-                padding: 0;
-              }
-              .no-print {
-                display: none;
-              }
+              body { padding: 0; }
+              .no-print { display: none; }
             }
           </style>
         </head>
@@ -403,6 +425,11 @@ const KitchenDisplay = () => {
             <div class="icon">🍳</div>
             <h1>KITCHEN ORDER</h1>
           </div>
+
+          ${isAutoPrint ? 
+            '<div class="auto-print-badge">⚡ AUTO-PRINTED</div>' : 
+            '<div class="manual-print-badge">👆 MANUAL PRINT</div>'
+          }
           
           <div class="table-info">
             <div class="table-number">TABLE ${group.tableNumber}</div>
@@ -468,6 +495,12 @@ const KitchenDisplay = () => {
             <button onclick="window.print()">🖨️ Print</button>
             <button onclick="window.close()">Close</button>
           </div>
+
+          ${isAutoPrint ? `
+          <script>
+            setTimeout(() => { window.print(); }, 500);
+          </script>
+          ` : ''}
         </body>
       </html>
     `);
@@ -567,6 +600,24 @@ const KitchenDisplay = () => {
         </div>
 
         <div className="kds-header-right">
+          {/* AUTO-PRINT TOGGLE SWITCH */}
+          <div className="auto-print-toggle">
+            <label className="toggle-label">
+              <span className="toggle-text">Auto-Print:</span>
+              <div className="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  checked={autoPrintEnabled}
+                  onChange={(e) => setAutoPrintEnabled(e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </div>
+              <span className={`toggle-status ${autoPrintEnabled ? 'on' : 'off'}`}>
+                {autoPrintEnabled ? '⚡ ON' : 'OFF'}
+              </span>
+            </label>
+          </div>
+
           <select
             className="kds-restaurant-select"
             value={selectedRestaurant}
@@ -615,7 +666,8 @@ const KitchenDisplay = () => {
       </div>
 
       <div className="kds-last-update">
-        Last updated: {lastUpdate.toLocaleTimeString('en-IN')}
+        Last updated: {lastUpdate.toLocaleTimeString('en-IN')} • 
+        Auto-print: {autoPrintEnabled ? ' ON ⚡' : ' OFF'}
       </div>
 
       <div className="kds-content">
@@ -640,6 +692,7 @@ const KitchenDisplay = () => {
                   const earliestTime = getEarliestOrderTime(group.orders);
                   const totalItems = group.orders.reduce((sum, o) => sum + (o.quantity || 1), 0);
                   const hasTimerWarning = group.orders.some(o => isWithinModificationWindow(o.createdAt));
+                  const wasAutoPrinted = group.orders.every(o => autoPrintedOrders.has(o.orderId));
 
                   return (
                     <div key={group.key} className="kds-order-group-card">
@@ -650,6 +703,7 @@ const KitchenDisplay = () => {
                         <div className="group-table-number">
                           <span className="table-icon">🍽️</span>
                           <span className="table-text">Table {group.tableNumber}</span>
+                          {wasAutoPrinted && autoPrintEnabled && <span className="auto-printed-badge">⚡</span>}
                         </div>
 
                         <div className="group-customer-info">
@@ -691,25 +745,25 @@ const KitchenDisplay = () => {
                         </div>
                       </div>
 
-                      {/* FIX #2: Show timer warning at group level if any order within window */}
                       {hasTimerWarning && statusConfig.value === 'pending' && (
                         <div className="modification-timer-warning-group">
-                          ⏳ Customer modification timer active - Please wait before confirming
+                          ⏳ Customer modification timer active
+                          {autoPrintEnabled ? ' - Auto-print will trigger when timer expires' : ' - Manual print available'}
                         </div>
                       )}
 
-                      {/* FIX #3: Print button at group level */}
+                      {/* MANUAL PRINT BUTTON - Always available */}
                       {isExpanded && (
                         <div className="group-actions">
                           <button 
                             className="btn-print-table"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handlePrintTableOrder(group);
+                              handlePrintTableOrder(group, false);
                             }}
-                            title="Print entire table order"
+                            title="Print entire table order (Manual)"
                           >
-                            🖨️ Print Table Order
+                            🖨️ Print Table Order {wasAutoPrinted && autoPrintEnabled && '(Reprint)'}
                           </button>
                         </div>
                       )}
@@ -728,7 +782,6 @@ const KitchenDisplay = () => {
                                 className="kds-order-item"
                                 style={{ borderLeftColor: currentStatusConfig?.color }}
                               >
-                                {/* FIX #1: No order ID displayed */}
                                 <div className="order-item-header">
                                   <span 
                                     className="order-time"
@@ -774,13 +827,14 @@ const KitchenDisplay = () => {
                                   </div>
                                 )}
 
+                                {/* MANUAL STATUS CONTROLS - Always available */}
                                 <div className="kds-order-actions">
                                   {statusConfig.value === 'pending' && (
                                     <button 
                                       className="btn-kds-action btn-confirm"
                                       onClick={() => handleStatusChange(order.orderId, 'confirmed')}
                                       disabled={withinModWindow}
-                                      title={withinModWindow ? 'Wait for customer modification timer' : 'Confirm order'}
+                                      title={withinModWindow ? 'Wait for customer modification timer' : 'Manually confirm order'}
                                       style={withinModWindow ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                     >
                                       {withinModWindow ? '⏳ Wait' : '✓ Confirm'}

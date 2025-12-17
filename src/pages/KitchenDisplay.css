@@ -122,6 +122,95 @@
   gap: 12px;
 }
 
+/* Auto-Print Toggle Switch */
+.auto-print-toggle {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--kds-white);
+  border: 2px solid var(--kds-border);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.auto-print-toggle:hover {
+  border-color: var(--kds-primary);
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kds-text);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 52px;
+  height: 28px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+  border-radius: 28px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.4s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(24px);
+}
+
+.toggle-status {
+  font-size: 13px;
+  font-weight: 700;
+  min-width: 50px;
+  text-align: center;
+}
+
+.toggle-status.on {
+  color: #4CAF50;
+}
+
+.toggle-status.off {
+  color: #999;
+}
+
 .kds-restaurant-select {
   padding: 10px 16px;
   border: 1px solid var(--kds-border);
@@ -337,6 +426,29 @@
   font-size: 20px;
   font-weight: 700;
   text-align: center;
+  position: relative;
+}
+
+.auto-printed-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #4CAF50;
+  color: white;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+  animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 .table-icon {
