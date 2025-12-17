@@ -90,12 +90,11 @@ const KitchenDisplay = () => {
     return '#ef4444';
   };
 
-  // FIX #2: Check if order is within 2-minute modification window
   const isWithinModificationWindow = (createdAt) => {
     if (!createdAt) return false;
     const diffMs = new Date() - new Date(createdAt);
     const diffMins = Math.floor(diffMs / 60000);
-    return diffMins < 2; // Within 2 minutes
+    return diffMins < 2;
   };
 
   const handleStatusChange = async (orderId, newStatus) => {
@@ -129,165 +128,269 @@ const KitchenDisplay = () => {
     }
   };
 
-  // FIX #4: Add print functionality
-  const handlePrintOrder = (order) => {
-    const item = getItemDetails(order.productId);
+  // FIX #3 & #4: Print entire table order with improved layout
+  const handlePrintTableOrder = (group) => {
     const restaurant = restaurants.find(r => 
-      (r.rest_id || r.restId) === order.restaurantId
+      (r.rest_id || r.restId) === group.restaurantId
     );
 
     const printWindow = window.open('', '', 'width=800,height=600');
+    
+    // Calculate totals
+    let subtotal = 0;
+    const itemsHTML = group.orders.map(order => {
+      const item = getItemDetails(order.productId);
+      const itemTotal = (order.price || 0) * (order.quantity || 1);
+      subtotal += itemTotal;
+      
+      return `
+        <div class="order-item">
+          <div class="item-header">
+            <div class="item-name">${item.productName || 'Unknown Item'}</div>
+            <div class="item-price">₹${itemTotal}</div>
+          </div>
+          <div class="item-details">
+            <span class="detail-badge">Qty: ×${order.quantity || 1}</span>
+            ${order.portionSize ? `<span class="detail-badge">${order.portionSize.toUpperCase()}</span>` : ''}
+            <span class="detail-badge">₹${order.price || 0} each</span>
+          </div>
+          ${(order.itemNotes || order.orderNotes) ? `
+            <div class="item-notes">
+              ${order.itemNotes ? `<div class="note-line"><strong>🍴 Item:</strong> ${order.itemNotes}</div>` : ''}
+              ${order.orderNotes ? `<div class="note-line"><strong>📝 Order:</strong> ${order.orderNotes}</div>` : ''}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
     printWindow.document.write(`
       <html>
         <head>
-          <title>Kitchen Order #${order.orderId}</title>
+          <title>Kitchen Order - Table ${group.tableNumber}</title>
           <style>
             * {
               margin: 0;
               padding: 0;
               box-sizing: border-box;
             }
+            
+            @page {
+              size: 80mm auto;
+              margin: 5mm;
+            }
+            
             body {
               font-family: 'Courier New', monospace;
-              padding: 20mm;
               max-width: 80mm;
               margin: 0 auto;
+              padding: 5mm;
               background: white;
+              font-size: 12pt;
+              line-height: 1.4;
             }
+            
             .header {
               text-align: center;
               background: #000;
               color: #fff;
               padding: 15px;
               margin-bottom: 15px;
-              font-size: 20px;
+              border-radius: 5px;
+            }
+            
+            .header h1 {
+              font-size: 18pt;
               font-weight: bold;
-              text-transform: uppercase;
               letter-spacing: 2px;
+              margin-bottom: 5px;
             }
-            .order-id {
+            
+            .header .icon {
+              font-size: 24pt;
+            }
+            
+            .table-info {
               text-align: center;
-              font-size: 18px;
-              font-weight: bold;
-              margin: 10px 0;
-            }
-            .divider {
-              border-top: 2px dashed #000;
-              margin: 15px 0;
-            }
-            .divider-thick {
-              border-top: 4px solid #000;
-              margin: 15px 0;
-            }
-            .critical {
               background: #000;
               color: #fff;
-              padding: 15px;
-              text-align: center;
-              margin: 10px 0;
+              padding: 20px 15px;
+              margin: 15px 0;
+              border-radius: 5px;
             }
-            .table-info {
-              font-size: 28px;
+            
+            .table-number {
+              font-size: 32pt;
               font-weight: bold;
-              margin: 5px 0;
+              margin-bottom: 8px;
+              letter-spacing: 1px;
             }
+            
+            .table-time {
+              font-size: 11pt;
+              opacity: 0.9;
+            }
+            
+            .divider {
+              border-top: 2px dashed #333;
+              margin: 12px 0;
+            }
+            
+            .divider-thick {
+              border-top: 3px solid #000;
+              margin: 15px 0;
+            }
+            
+            .info-section {
+              margin: 12px 0;
+              padding: 10px;
+              background: #f5f5f5;
+              border-radius: 5px;
+            }
+            
             .info-row {
               display: flex;
               justify-content: space-between;
-              margin: 8px 0;
-              font-size: 14px;
-              line-height: 1.5;
+              margin: 6px 0;
+              font-size: 11pt;
             }
-            .label {
+            
+            .info-label {
               font-weight: bold;
             }
-            .item-section {
-              margin: 15px 0;
-            }
-            .item-section h2 {
-              font-size: 16px;
+            
+            .items-header {
+              background: #000;
+              color: #fff;
+              padding: 10px;
+              text-align: center;
+              font-size: 14pt;
               font-weight: bold;
-              text-transform: uppercase;
-              border-bottom: 3px solid #000;
-              padding-bottom: 5px;
-              margin-bottom: 10px;
+              margin: 15px 0 10px 0;
+              letter-spacing: 1px;
             }
-            .item-main {
-              background: #f5f5f5;
-              padding: 15px;
-              border: 3px solid #000;
+            
+            .order-item {
+              border: 2px solid #ddd;
+              padding: 12px;
+              margin: 10px 0;
+              background: #fafafa;
+              border-radius: 5px;
             }
-            .item-name {
-              font-size: 20px;
-              font-weight: bold;
-              text-transform: uppercase;
-              margin-bottom: 10px;
-              line-height: 1.3;
-            }
-            .item-details {
+            
+            .item-header {
               display: flex;
               justify-content: space-between;
-              margin: 10px 0;
-              font-size: 15px;
+              align-items: baseline;
+              margin-bottom: 8px;
             }
-            .item-details strong {
-              font-size: 18px;
+            
+            .item-name {
+              font-size: 15pt;
+              font-weight: bold;
+              flex: 1;
+              line-height: 1.3;
             }
-            .price-info {
+            
+            .item-price {
+              font-size: 14pt;
+              font-weight: bold;
+              margin-left: 10px;
+            }
+            
+            .item-details {
+              display: flex;
+              gap: 8px;
+              flex-wrap: wrap;
+              margin: 8px 0;
+            }
+            
+            .detail-badge {
+              background: #e0e0e0;
+              padding: 4px 10px;
+              border-radius: 4px;
+              font-size: 10pt;
+              font-weight: 600;
+            }
+            
+            .item-notes {
+              margin-top: 10px;
+              padding: 10px;
+              background: #fff9c4;
+              border-left: 4px solid #fbc02d;
+              border-radius: 3px;
+            }
+            
+            .note-line {
+              margin: 4px 0;
+              font-size: 10pt;
+              line-height: 1.4;
+            }
+            
+            .summary-section {
+              margin: 15px 0;
+              padding: 12px;
+              background: #f0f0f0;
+              border-radius: 5px;
+            }
+            
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              margin: 6px 0;
+              font-size: 12pt;
+            }
+            
+            .total-row {
               display: flex;
               justify-content: space-between;
               margin-top: 10px;
               padding-top: 10px;
               border-top: 2px solid #000;
-              font-size: 14px;
-            }
-            .total-price {
-              font-size: 18px;
+              font-size: 16pt;
               font-weight: bold;
             }
-            .notes-section {
-              background: #fff9c4;
-              border: 3px solid #fbc02d;
-              padding: 15px;
-              margin: 15px 0;
-            }
-            .notes-section h2 {
-              font-size: 16px;
-              font-weight: bold;
-              background: #ffeb3b;
-              color: #000;
-              padding: 8px;
-              margin: -15px -15px 10px -15px;
-              text-align: center;
-            }
-            .note-item {
-              margin: 8px 0;
-            }
-            .note-label {
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .note-content {
-              font-size: 14px;
-              line-height: 1.4;
-              font-weight: bold;
-            }
+            
             .footer {
               text-align: center;
-              margin-top: 20px;
+              margin-top: 15px;
             }
-            .priority {
+            
+            .priority-banner {
               background: #f44336;
               color: #fff;
-              font-size: 16px;
+              font-size: 14pt;
               font-weight: bold;
               padding: 15px;
               text-transform: uppercase;
               letter-spacing: 1px;
+              border-radius: 5px;
             }
+            
+            .no-print {
+              margin-top: 20px;
+              text-align: center;
+            }
+            
+            .no-print button {
+              padding: 12px 24px;
+              font-size: 14pt;
+              margin: 5px;
+              cursor: pointer;
+              border: none;
+              border-radius: 5px;
+              background: #2196F3;
+              color: white;
+              font-weight: bold;
+            }
+            
+            .no-print button:hover {
+              background: #1976D2;
+            }
+            
             @media print {
-              body { 
-                padding: 10mm;
+              body {
+                padding: 0;
               }
               .no-print {
                 display: none;
@@ -296,102 +399,82 @@ const KitchenDisplay = () => {
           </style>
         </head>
         <body>
-          <div class="header">🍳 KITCHEN ORDER</div>
-          <div class="order-id">Order #${order.orderId}</div>
-          
-          <div class="divider"></div>
-          
-          <div class="critical">
-            <div class="table-info">TABLE: #${order.tableNumber || '-'}</div>
-            <div style="font-size: 12px; margin-top: 8px;">
-              ${new Date(order.createdAt).toLocaleString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              })}
-            </div>
+          <div class="header">
+            <div class="icon">🍳</div>
+            <h1>KITCHEN ORDER</h1>
           </div>
           
-          <div class="divider"></div>
-          
-          <div class="info-row">
-            <span class="label">Restaurant:</span>
-            <span>${restaurant?.name || 'Unknown'}</span>
+          <div class="table-info">
+            <div class="table-number">TABLE ${group.tableNumber}</div>
+            <div class="table-time">${new Date().toLocaleString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            })}</div>
           </div>
           
-          <div class="info-row">
-            <span class="label">Customer:</span>
-            <span>${order.createdBy || 'Guest'}</span>
-          </div>
-          
-          ${order.customerPhone ? `
+          <div class="info-section">
             <div class="info-row">
-              <span class="label">Phone:</span>
-              <span>${order.customerPhone}</span>
+              <span class="info-label">Restaurant:</span>
+              <span>${restaurant?.name || 'Unknown'}</span>
             </div>
-          ` : ''}
+            <div class="info-row">
+              <span class="info-label">Customer:</span>
+              <span>${group.customerName}</span>
+            </div>
+            ${group.customerPhone ? `
+              <div class="info-row">
+                <span class="info-label">Phone:</span>
+                <span>${group.customerPhone}</span>
+              </div>
+            ` : ''}
+            <div class="info-row">
+              <span class="info-label">Total Items:</span>
+              <span>${group.orders.length}</span>
+            </div>
+          </div>
+          
+          <div class="items-header">ORDER ITEMS</div>
+          
+          ${itemsHTML}
           
           <div class="divider-thick"></div>
           
-          <div class="item-section">
-            <h2>ORDER ITEM:</h2>
-            <div class="item-main">
-              <div class="item-name">${item.productName || 'Unknown Item'}</div>
-              
-              <div class="item-details">
-                <div>Quantity: <strong>×${order.quantity || 1}</strong></div>
-                ${order.portionSize ? `<div>Size: <strong>${order.portionSize.toUpperCase()}</strong></div>` : ''}
-              </div>
-              
-              <div class="price-info">
-                <span>Unit Price: ₹${order.price || 0}</span>
-                <span class="total-price">TOTAL: ₹${(order.price || 0) * (order.quantity || 1)}</span>
-              </div>
+          <div class="summary-section">
+            <div class="summary-row">
+              <span>Number of Items:</span>
+              <span>${group.orders.length}</span>
+            </div>
+            <div class="summary-row">
+              <span>Total Quantity:</span>
+              <span>×${group.orders.reduce((sum, o) => sum + (o.quantity || 1), 0)}</span>
+            </div>
+            <div class="total-row">
+              <span>TOTAL AMOUNT:</span>
+              <span>₹${subtotal}</span>
             </div>
           </div>
-          
-          ${(order.itemNotes || order.orderNotes) ? `
-            <div class="divider-thick"></div>
-            <div class="notes-section">
-              <h2>⚠️ SPECIAL INSTRUCTIONS:</h2>
-              ${order.itemNotes ? `
-                <div class="note-item">
-                  <div class="note-label">🍴 Item Notes:</div>
-                  <div class="note-content">${order.itemNotes}</div>
-                </div>
-              ` : ''}
-              ${order.orderNotes ? `
-                <div class="note-item">
-                  <div class="note-label">📝 Order Notes:</div>
-                  <div class="note-content">${order.orderNotes}</div>
-                </div>
-              ` : ''}
-            </div>
-          ` : ''}
           
           <div class="divider-thick"></div>
           
           <div class="footer">
-            <div class="priority">🔥 PREPARE IMMEDIATELY</div>
+            <div class="priority-banner">🔥 PREPARE IMMEDIATELY</div>
           </div>
           
-          <div class="no-print" style="margin-top: 20px; text-align: center;">
-            <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
-              🖨️ Print
-            </button>
-            <button onclick="window.close()" style="padding: 10px 20px; font-size: 16px; cursor: pointer; margin-left: 10px;">
-              Close
-            </button>
+          <div class="no-print">
+            <button onclick="window.print()">🖨️ Print</button>
+            <button onclick="window.close()">Close</button>
           </div>
         </body>
       </html>
     `);
+    
     printWindow.document.close();
   };
 
-  // GROUP ORDERS BY TABLE AND PHONE
   const groupOrders = (ordersList) => {
     const groups = {};
     
@@ -444,7 +527,6 @@ const KitchenDisplay = () => {
 
   const orderGroups = groupOrders(filteredOrders);
 
-  // FIX #3: Properly calculate stats from filtered orders
   const groupedByStatus = STATUS_CONFIG.map(statusConfig => {
     const statusOrders = filteredOrders.filter(order => {
       const orderStatus = order.orderStatus || order.order_status || 'pending';
@@ -520,7 +602,6 @@ const KitchenDisplay = () => {
         </div>
       )}
 
-      {/* FIX #3: Use groupedByStatus for accurate counts */}
       <div className="kds-stats">
         {groupedByStatus.map(status => (
           <div key={status.value} className="kds-stat-card" style={{ borderLeftColor: status.color }}>
@@ -558,10 +639,10 @@ const KitchenDisplay = () => {
                   const isExpanded = expandedGroups.has(group.key);
                   const earliestTime = getEarliestOrderTime(group.orders);
                   const totalItems = group.orders.reduce((sum, o) => sum + (o.quantity || 1), 0);
+                  const hasTimerWarning = group.orders.some(o => isWithinModificationWindow(o.createdAt));
 
                   return (
                     <div key={group.key} className="kds-order-group-card">
-                      {/* Group Header - Click to expand/collapse */}
                       <div 
                         className="kds-group-header"
                         onClick={() => toggleGroup(group.key)}
@@ -610,7 +691,29 @@ const KitchenDisplay = () => {
                         </div>
                       </div>
 
-                      {/* Group Orders - Show when expanded */}
+                      {/* FIX #2: Show timer warning at group level if any order within window */}
+                      {hasTimerWarning && statusConfig.value === 'pending' && (
+                        <div className="modification-timer-warning-group">
+                          ⏳ Customer modification timer active - Please wait before confirming
+                        </div>
+                      )}
+
+                      {/* FIX #3: Print button at group level */}
+                      {isExpanded && (
+                        <div className="group-actions">
+                          <button 
+                            className="btn-print-table"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrintTableOrder(group);
+                            }}
+                            title="Print entire table order"
+                          >
+                            🖨️ Print Table Order
+                          </button>
+                        </div>
+                      )}
+
                       {isExpanded && (
                         <div className="kds-group-orders">
                           {group.orders.map(order => {
@@ -625,9 +728,8 @@ const KitchenDisplay = () => {
                                 className="kds-order-item"
                                 style={{ borderLeftColor: currentStatusConfig?.color }}
                               >
+                                {/* FIX #1: No order ID displayed */}
                                 <div className="order-item-header">
-                                  {/* FIX #1: Hide DB ID, show friendly format */}
-                                  <span className="order-id-badge">Order #{order.orderId}</span>
                                   <span 
                                     className="order-time"
                                     style={{ color: getTimeColor(order.createdAt) }}
@@ -666,24 +768,13 @@ const KitchenDisplay = () => {
                                   )}
                                 </div>
 
-                                {/* FIX #2: Show modification timer warning if within window */}
                                 {withinModWindow && statusConfig.value === 'pending' && (
                                   <div className="modification-timer-warning">
-                                    ⏳ Customer can modify this order for {2 - Math.floor((new Date() - new Date(order.createdAt)) / 60000)} more minute(s)
+                                    ⏳ Can modify for {2 - Math.floor((new Date() - new Date(order.createdAt)) / 60000)} more min
                                   </div>
                                 )}
 
                                 <div className="kds-order-actions">
-                                  {/* FIX #4: Print button */}
-                                  <button 
-                                    className="btn-print-order"
-                                    onClick={() => handlePrintOrder(order)}
-                                    title="Print Kitchen Order"
-                                  >
-                                    🖨️
-                                  </button>
-                                  
-                                  {/* FIX #2: Disable status change if within modification window */}
                                   {statusConfig.value === 'pending' && (
                                     <button 
                                       className="btn-kds-action btn-confirm"

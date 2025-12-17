@@ -657,6 +657,19 @@
   animation: pulse-warning 2s infinite;
 }
 
+.modification-timer-warning-group {
+  background: linear-gradient(135deg, #fff9c4 0%, #ffeb3b 100%);
+  border: 2px solid #fbc02d;
+  border-radius: 0;
+  padding: 12px 20px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f57c00;
+  border-left: 0;
+  border-right: 0;
+}
+
 @keyframes pulse-warning {
   0%, 100% {
     opacity: 1;
@@ -664,6 +677,40 @@
   50% {
     opacity: 0.8;
   }
+}
+
+/* Group Actions (Print Button) */
+.group-actions {
+  padding: 15px 20px;
+  background: #f8f9fa;
+  border-bottom: 2px solid var(--kds-border);
+  display: flex;
+  justify-content: center;
+}
+
+.btn-print-table {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+
+.btn-print-table:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+}
+
+.btn-print-table:active {
+  transform: translateY(0);
 }
 
 /* Responsive */

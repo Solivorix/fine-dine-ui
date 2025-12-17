@@ -378,7 +378,6 @@ const OrderManagement = () => {
                       <table className="orders-table-grouped">
                         <thead>
                           <tr>
-                            <th>Order ID</th>
                             <th>Item</th>
                             <th>Qty</th>
                             <th>Price</th>
@@ -395,9 +394,6 @@ const OrderManagement = () => {
                             
                             return (
                               <tr key={order.orderId}>
-                                <td>
-                                  <span className="order-id-badge">#{order.orderId}</span>
-                                </td>
                                 <td>
                                   <div className="item-info">
                                     <span className="item-name">{getItemName(order.productId)}</span>
