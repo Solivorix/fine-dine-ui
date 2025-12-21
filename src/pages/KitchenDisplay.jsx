@@ -28,6 +28,7 @@ const KitchenDisplay = () => {
   });
   
   const [autoPrintedOrders, setAutoPrintedOrders] = useState(new Set());
+  const [recentlyPrintedGroups, setRecentlyPrintedGroups] = useState(new Set());
 
   // AUTO-STATUS TIME INTERVALS (in minutes)
   const STATUS_TIMINGS = {
@@ -96,47 +97,85 @@ const KitchenDisplay = () => {
     if (!autoPrintEnabled) return;
 
     const checkAutoPrint = setInterval(() => {
-      orders.forEach(order => {
-        if (
+      const groups = groupOrders(orders);
+
+      groups.forEach(group => {
+        // Check if any order in this group needs auto-printing
+        const needsPrinting = group.orders.some(order => 
           (order.orderStatus === 'pending' || !order.orderStatus) &&
           !autoPrintedOrders.has(order.orderId) &&
           !isWithinModificationWindow(order.createdAt)
-        ) {
-          console.log('🖨️ AUTO-PRINT triggered for order:', order.orderId);
-          handleAutoPrint(order);
+        );
+
+        // Check if this group was recently printed (cooldown)
+        const groupKey = `${group.tableNumber}-${group.customerPhone}`;
+        
+        if (needsPrinting && !recentlyPrintedGroups.has(groupKey)) {
+          console.log('🖨️ AUTO-PRINT triggered for table:', group.tableNumber);
+          
+          // Add to cooldown set
+          setRecentlyPrintedGroups(prev => new Set([...prev, groupKey]));
+          
+          // Remove from cooldown after 30 seconds
+          setTimeout(() => {
+            setRecentlyPrintedGroups(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(groupKey);
+              return newSet;
+            });
+          }, 30000);
+          
+          handleAutoPrint(group.orders[0]); // Pass any order from the group
         }
       });
     }, 5000);
 
     return () => clearInterval(checkAutoPrint);
-  }, [orders, autoPrintedOrders, autoPrintEnabled]);
+  }, [orders, autoPrintedOrders, autoPrintEnabled, recentlyPrintedGroups]);
 
   // AUTO-STATUS PROGRESSION: Only runs if both auto-print AND auto-status are enabled
   useEffect(() => {
     if (!autoPrintEnabled || !autoStatusEnabled) return;
 
     const checkAutoStatus = setInterval(() => {
+      const processedOrders = new Set();
+
       orders.forEach(order => {
+        // Skip if already processed this cycle
+        if (processedOrders.has(order.orderId)) return;
+
         const orderStatus = order.orderStatus || order.order_status || 'pending';
         const statusChangeTime = order.statusChangedAt || order.createdAt;
         const minutesSinceChange = getMinutesSince(statusChangeTime);
 
+        let shouldUpdate = false;
+        let newStatus = '';
+
         // confirmed → preparing
         if (orderStatus === 'confirmed' && minutesSinceChange >= STATUS_TIMINGS.confirmed_to_preparing) {
-          console.log('🤖 AUTO-STATUS: confirmed → preparing for order:', order.orderId);
-          handleStatusChange(order.orderId, 'preparing');
+          shouldUpdate = true;
+          newStatus = 'preparing';
         }
-        
         // preparing → ready
         else if (orderStatus === 'preparing' && minutesSinceChange >= STATUS_TIMINGS.preparing_to_ready) {
-          console.log('🤖 AUTO-STATUS: preparing → ready for order:', order.orderId);
-          handleStatusChange(order.orderId, 'ready');
+          shouldUpdate = true;
+          newStatus = 'ready';
         }
-        
         // ready → served
         else if (orderStatus === 'ready' && minutesSinceChange >= STATUS_TIMINGS.ready_to_served) {
-          console.log('🤖 AUTO-STATUS: ready → served for order:', order.orderId);
-          handleMarkServed(order.orderId);
+          shouldUpdate = true;
+          newStatus = 'served';
+        }
+
+        if (shouldUpdate) {
+          processedOrders.add(order.orderId);
+          console.log(`🤖 AUTO-STATUS: ${orderStatus} → ${newStatus} for order:`, order.orderId);
+          
+          if (newStatus === 'served') {
+            handleMarkServed(order.orderId);
+          } else {
+            handleStatusChange(order.orderId, newStatus);
+          }
         }
       });
     }, 10000); // Check every 10 seconds
