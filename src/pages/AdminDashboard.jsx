@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faUtensils, faStore, faChartBar, faUsers, faClipboardList, faKitchenSet,
   faLock, faRightFromBracket, faSync, faArrowRight, faSeedling, faCake,
-  faWineGlass, faShrimp, faBowlFood, faLeaf
+  faWineGlass, faShrimp, faBowlFood, faLeaf, faQrcode
 } from '@fortawesome/free-solid-svg-icons';
 import './AdminDashboard.css';
 
@@ -171,6 +171,20 @@ const AdminDashboard = () => {
               <div className="nav-item disabled">
                 <span className="nav-icon"><FontAwesomeIcon icon={faUsers} /></span>
                 <span>Users</span>
+                <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
+              </div>
+            )}
+
+            {/* QR Codes - ADMIN only */}
+            {hasAccess(['ADMIN']) ? (
+              <Link to="/admin/qr-codes" className="nav-item">
+                <span className="nav-icon"><FontAwesomeIcon icon={faQrcode} /></span>
+                <span>Table QR Codes</span>
+              </Link>
+            ) : (
+              <div className="nav-item disabled">
+                <span className="nav-icon"><FontAwesomeIcon icon={faQrcode} /></span>
+                <span>Table QR Codes</span>
                 <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
               </div>
             )}
@@ -368,6 +382,31 @@ const AdminDashboard = () => {
               </div>
               <div className="quick-action-arrow"><FontAwesomeIcon icon={faArrowRight} /></div>
             </Link>
+
+            {/* QR Codes - ADMIN only */}
+            {hasAccess(['ADMIN']) ? (
+              <Link to="/admin/qr-codes" className="quick-action-card">
+                <div className="quick-action-icon blue">
+                  <FontAwesomeIcon icon={faQrcode} />
+                </div>
+                <div className="quick-action-info">
+                  <span className="quick-action-title">Table QR Codes</span>
+                  <span className="quick-action-subtitle">Generate & print</span>
+                </div>
+                <div className="quick-action-arrow"><FontAwesomeIcon icon={faArrowRight} /></div>
+              </Link>
+            ) : (
+              <div className="quick-action-card disabled">
+                <div className="quick-action-icon blue">
+                  <FontAwesomeIcon icon={faQrcode} />
+                </div>
+                <div className="quick-action-info">
+                  <span className="quick-action-title">Table QR Codes</span>
+                  <span className="quick-action-subtitle">Access restricted</span>
+                </div>
+                <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
+              </div>
+            )}
           </div>
         </section>
 

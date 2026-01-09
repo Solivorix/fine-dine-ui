@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, userAPI } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -46,34 +46,51 @@ export const AuthProvider = ({ children }) => {
       // Backend returns: { token, userId, userName, role }
       if (response.data && response.data.token) {
         const { token, userId, userName, role } = response.data;
-        
+
         console.log('✅ Extracted from response:', { token, userId, userName, role });
-        
+
         if (!role) {
           console.error('❌ No role in response! Response data:', response.data);
-          return { 
-            success: false, 
-            error: 'Server did not return user role. Please contact administrator.' 
+          return {
+            success: false,
+            error: 'Server did not return user role. Please contact administrator.'
           };
         }
-        
-        // Store token
+
+        // Store token first (needed for API calls)
         localStorage.setItem('token', token);
-        
-        // Create user object with actual role from backend
-        const userData = {
+
+        // Create initial user object
+        let userData = {
           user_id: userId,
           user_name: userName,
-          role: role,  // ← Using role from backend response!
-          token
+          role: role,
+          token,
+          restaurant_id: null // Will be fetched for non-admin users
         };
-        
+
+        // For non-admin users, fetch full user details to get restaurant_id
+        if (role.toUpperCase() !== 'ADMIN') {
+          try {
+            console.log('📡 Fetching user details for restaurant_id...');
+            const userDetailsRes = await userAPI.getById(userId);
+            if (userDetailsRes.data) {
+              const restaurantId = userDetailsRes.data.restaurant_id || userDetailsRes.data.restaurantId;
+              userData.restaurant_id = restaurantId;
+              console.log('🏪 User restaurant_id:', restaurantId);
+            }
+          } catch (err) {
+            console.warn('⚠️ Could not fetch user details:', err);
+            // Continue without restaurant_id - will default to showing no data
+          }
+        }
+
         console.log('💾 Storing user data:', userData);
         console.log('🔑 User role:', role);
-        
+
         localStorage.setItem('user', JSON.stringify(userData));
         setUser(userData);
-        
+
         return { success: true };
       } else {
         console.error('❌ Invalid response structure:', response.data);

@@ -486,6 +486,10 @@
   background: rgba(245, 158, 11, 0.15);
 }
 
+.quick-action-icon.blue {
+  background: rgba(59, 130, 246, 0.15);
+}
+
 .quick-action-card:hover .quick-action-icon {
   transform: scale(1.05);
 }
@@ -504,6 +508,10 @@
 
 .quick-action-card:hover .quick-action-icon.orange {
   background: var(--warning);
+}
+
+.quick-action-card:hover .quick-action-icon.blue {
+  background: #3b82f6;
 }
 
 .quick-action-info {

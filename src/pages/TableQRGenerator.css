@@ -1,0 +1,457 @@
+/* Table QR Generator Styles */
+
+.qr-generator-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  padding: 0 0 40px 0;
+}
+
+/* Loading & Access Denied */
+.qr-loading,
+.qr-access-denied {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #fff;
+}
+
+.qr-loader {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left-color: #d97706;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.qr-access-denied svg {
+  color: #ef4444;
+}
+
+.qr-access-denied h2 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.qr-access-denied p {
+  color: #9ca3af;
+}
+
+.qr-access-denied button {
+  margin-top: 10px;
+  padding: 12px 24px;
+  background: #d97706;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.qr-access-denied button:hover {
+  background: #b45309;
+}
+
+/* Header */
+.qr-header {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  padding: 20px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.qr-header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.qr-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.qr-back-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.qr-title-section h1 {
+  font-size: 1.5rem;
+  color: #fff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qr-title-section h1 svg {
+  color: #d97706;
+}
+
+.qr-title-section p {
+  color: #9ca3af;
+  margin: 4px 0 0 0;
+  font-size: 0.9rem;
+}
+
+.qr-header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.qr-btn-primary {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.qr-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(217, 119, 6, 0.4);
+}
+
+.qr-btn-secondary {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.qr-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.qr-btn-outline {
+  padding: 12px 24px;
+  background: transparent;
+  color: #d97706;
+  border: 2px solid #d97706;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.qr-btn-outline:hover {
+  background: rgba(217, 119, 6, 0.1);
+}
+
+/* Controls */
+.qr-controls {
+  display: flex;
+  gap: 24px;
+  padding: 24px 30px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  flex-wrap: wrap;
+}
+
+.qr-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qr-control-group label {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qr-control-group label svg {
+  color: #d97706;
+}
+
+.qr-control-group select {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  min-width: 200px;
+  cursor: pointer;
+}
+
+.qr-control-group select:focus {
+  outline: none;
+  border-color: #d97706;
+}
+
+.qr-control-group select option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+.qr-number-input {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.qr-number-input button {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.qr-number-input button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.qr-number-input button:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.qr-number-input button:hover:not(:disabled) {
+  background: rgba(217, 119, 6, 0.3);
+}
+
+.qr-number-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.qr-number-input input {
+  width: 80px;
+  height: 40px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: none;
+  border-right: none;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.qr-number-input input:focus {
+  outline: none;
+}
+
+/* Info Banner */
+.qr-info-banner {
+  margin: 20px 30px;
+  padding: 16px 20px;
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  border-radius: 10px;
+  color: #fbbf24;
+}
+
+.qr-info-banner p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.qr-info-banner code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  color: #fff;
+}
+
+/* QR Grid */
+.qr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  padding: 30px;
+}
+
+.qr-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s;
+}
+
+.qr-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+.qr-card h3 {
+  font-size: 1rem;
+  color: #374151;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+}
+
+.qr-card svg {
+  display: block;
+  margin: 0 auto;
+}
+
+.qr-card-info {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.qr-card-info .table-label {
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.qr-card-info .table-number {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #d97706;
+  line-height: 1;
+}
+
+.qr-card-info .scan-text {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 8px;
+}
+
+/* Footer Actions */
+.qr-footer-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 30px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .qr-header {
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 20px;
+  }
+
+  .qr-header-left {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .qr-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .qr-controls {
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .qr-control-group select,
+  .qr-number-input {
+    width: 100%;
+  }
+
+  .qr-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .qr-info-banner {
+    margin: 16px 20px;
+  }
+
+  .qr-footer-actions {
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .qr-footer-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .qr-generator-container {
+    background: #fff;
+    padding: 0;
+  }
+
+  .qr-header,
+  .qr-controls,
+  .qr-info-banner,
+  .qr-footer-actions {
+    display: none !important;
+  }
+
+  .qr-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .qr-card {
+    box-shadow: none;
+    border: 2px solid #333;
+    page-break-inside: avoid;
+  }
+}

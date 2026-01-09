@@ -10,6 +10,7 @@ import TableBooking from './pages/TableBooking';
 import OrderManagement from './pages/OrderManagement';
 import UserManagement from './pages/UserManagement';
 import KitchenDisplay from './pages/KitchenDisplay';
+import TableQRGenerator from './pages/TableQRGenerator';
 // RENAMED: Import AuthGuard but use it as ProtectedRoute
 import ProtectedRoute from './components/AuthGuard';
 import './App.css';
@@ -74,7 +75,14 @@ function App() {
                 <KitchenDisplay />
               </ProtectedRoute>
             } />
-            
+
+            {/* Table QR Generator - ADMIN only */}
+            <Route path="/admin/qr-codes" element={
+              <ProtectedRoute roles={['ADMIN']}>
+                <TableQRGenerator />
+              </ProtectedRoute>
+            } />
+
             {/* Root redirect */}
             <Route path="/" element={<Navigate to="/login" replace />} />
             
