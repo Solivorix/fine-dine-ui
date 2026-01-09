@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { restaurantAPI, itemAPI, userAPI } from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faUtensils, faStore, faChartBar, faUsers, faClipboardList, faKitchenSet,
+  faLock, faRightFromBracket, faSync, faArrowRight, faSeedling, faCake,
+  faWineGlass, faShrimp, faBowlFood, faLeaf
+} from '@fortawesome/free-solid-svg-icons';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -80,15 +86,21 @@ const AdminDashboard = () => {
 
   const getCategoryIcon = (category) => {
     const icons = {
-      'starter': '🥗',
-      'main': '🍽️',
-      'dessert': '🍰',
-      'beverage': '🥤',
-      'appetizer': '🍤',
-      'soup': '🍲',
-      'salad': '🥬'
+      'starter': faSeedling,
+      'main': faUtensils,
+      'dessert': faCake,
+      'beverage': faWineGlass,
+      'appetizer': faShrimp,
+      'soup': faBowlFood,
+      'salad': faLeaf
     };
-    return icons[category] || '🍴';
+    return icons[category] || faUtensils;
+  };
+
+  // Check user role permissions
+  const hasAccess = (allowedRoles) => {
+    if (!user?.role) return false;
+    return allowedRoles.includes(user.role.toUpperCase());
   };
 
   if (loading) {
@@ -106,40 +118,76 @@ const AdminDashboard = () => {
       <aside className="dashboard-sidebar">
         <div className="sidebar-header">
           <div className="logo">
-            <span className="logo-icon">🍽️</span>
+            <span className="logo-icon"><FontAwesomeIcon icon={faUtensils} /></span>
             <span className="logo-text">FineDine</span>
           </div>
         </div>
-        
+
         <nav className="sidebar-nav">
           <div className="nav-section">
             <span className="nav-section-title">Main Menu</span>
+
+            {/* Dashboard - All roles */}
             <Link to="/admin" className="nav-item active">
-              <span className="nav-icon">📊</span>
+              <span className="nav-icon"><FontAwesomeIcon icon={faChartBar} /></span>
               <span>Dashboard</span>
             </Link>
-            <Link to="/admin/restaurants" className="nav-item">
-              <span className="nav-icon">🏪</span>
-              <span>Restaurants</span>
-            </Link>
-            <Link to="/admin/menu" className="nav-item">
-              <span className="nav-icon">🍽️</span>
-              <span>Menu Items</span>
-            </Link>
-            <Link to="/admin/users" className="nav-item">
-              <span className="nav-icon">👥</span>
-              <span>Users</span>
-            </Link>
+
+            {/* Restaurants - ADMIN only */}
+            {hasAccess(['ADMIN']) ? (
+              <Link to="/admin/restaurants" className="nav-item">
+                <span className="nav-icon"><FontAwesomeIcon icon={faStore} /></span>
+                <span>Restaurants</span>
+              </Link>
+            ) : (
+              <div className="nav-item disabled">
+                <span className="nav-icon"><FontAwesomeIcon icon={faStore} /></span>
+                <span>Restaurants</span>
+                <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
+              </div>
+            )}
+
+            {/* Menu Items - ADMIN and MANAGER only */}
+            {hasAccess(['ADMIN', 'MANAGER']) ? (
+              <Link to="/admin/menu" className="nav-item">
+                <span className="nav-icon"><FontAwesomeIcon icon={faUtensils} /></span>
+                <span>Menu Items</span>
+              </Link>
+            ) : (
+              <div className="nav-item disabled">
+                <span className="nav-icon"><FontAwesomeIcon icon={faUtensils} /></span>
+                <span>Menu Items</span>
+                <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
+              </div>
+            )}
+
+            {/* Users - ADMIN only */}
+            {hasAccess(['ADMIN']) ? (
+              <Link to="/admin/users" className="nav-item">
+                <span className="nav-icon"><FontAwesomeIcon icon={faUsers} /></span>
+                <span>Users</span>
+              </Link>
+            ) : (
+              <div className="nav-item disabled">
+                <span className="nav-icon"><FontAwesomeIcon icon={faUsers} /></span>
+                <span>Users</span>
+                <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
+              </div>
+            )}
           </div>
-          
+
           <div className="nav-section">
             <span className="nav-section-title">Operations</span>
+
+            {/* Orders - All roles */}
             <Link to="/admin/orders" className="nav-item">
-              <span className="nav-icon">📋</span>
+              <span className="nav-icon"><FontAwesomeIcon icon={faClipboardList} /></span>
               <span>Orders</span>
             </Link>
+
+            {/* Kitchen - All roles */}
             <Link to="/admin/kitchen" className="nav-item">
-              <span className="nav-icon">👨‍🍳</span>
+              <span className="nav-icon"><FontAwesomeIcon icon={faKitchenSet} /></span>
               <span>Kitchen</span>
             </Link>
           </div>
@@ -148,15 +196,15 @@ const AdminDashboard = () => {
         <div className="sidebar-footer">
           <div className="user-profile">
             <div className="user-avatar">
-              {user?.loginId?.charAt(0)?.toUpperCase() || 'A'}
+              {user?.user_name?.charAt(0)?.toUpperCase() || user?.loginId?.charAt(0)?.toUpperCase() || 'A'}
             </div>
             <div className="user-info">
-              <span className="user-name">{user?.loginId || 'Admin'}</span>
-              <span className="user-role">{user?.role || 'Administrator'}</span>
+              <span className="user-name">{user?.user_name || user?.loginId || 'User'}</span>
+              <span className="user-role">{user?.role || 'Staff'}</span>
             </div>
           </div>
           <button className="btn-logout" onClick={logout}>
-            <span>🚪</span> Logout
+            <FontAwesomeIcon icon={faRightFromBracket} /> Logout
           </button>
         </div>
       </aside>
@@ -166,12 +214,12 @@ const AdminDashboard = () => {
         {/* Top Header */}
         <header className="dashboard-header">
           <div className="header-welcome">
-            <h1>{getGreeting()}, {user?.loginId || 'Admin'}! 👋</h1>
+            <h1>{getGreeting()}, {user?.user_name || user?.loginId || 'User'}!</h1>
             <p className="header-date">{formatDate()}</p>
           </div>
           <div className="header-actions">
             <button className="btn-refresh" onClick={fetchDashboardData}>
-              <span>🔄</span>
+              <FontAwesomeIcon icon={faSync} />
               Refresh
             </button>
           </div>
@@ -186,7 +234,7 @@ const AdminDashboard = () => {
                 <span className="stat-card-label">Total Restaurants</span>
               </div>
               <div className="stat-card-icon">
-                <span>🏪</span>
+                <FontAwesomeIcon icon={faStore} />
               </div>
             </div>
             <div className="stat-card-footer">
@@ -201,7 +249,7 @@ const AdminDashboard = () => {
                 <span className="stat-card-label">Menu Items</span>
               </div>
               <div className="stat-card-icon">
-                <span>🍽️</span>
+                <FontAwesomeIcon icon={faUtensils} />
               </div>
             </div>
             <div className="stat-card-footer">
@@ -216,7 +264,7 @@ const AdminDashboard = () => {
                 <span className="stat-card-label">Total Users</span>
               </div>
               <div className="stat-card-icon">
-                <span>👥</span>
+                <FontAwesomeIcon icon={faUsers} />
               </div>
             </div>
             <div className="stat-card-footer">
@@ -231,7 +279,7 @@ const AdminDashboard = () => {
                 <span className="stat-card-label">Today's Orders</span>
               </div>
               <div className="stat-card-icon">
-                <span>📋</span>
+                <FontAwesomeIcon icon={faClipboardList} />
               </div>
             </div>
             <div className="stat-card-footer">
@@ -247,48 +295,78 @@ const AdminDashboard = () => {
             <p>Navigate to frequently used sections</p>
           </div>
           <div className="quick-actions-grid">
-            <Link to="/admin/restaurants" className="quick-action-card">
-              <div className="quick-action-icon gold">
-                <span>🏪</span>
+            {/* Restaurants - ADMIN only */}
+            {hasAccess(['ADMIN']) ? (
+              <Link to="/admin/restaurants" className="quick-action-card">
+                <div className="quick-action-icon gold">
+                  <FontAwesomeIcon icon={faStore} />
+                </div>
+                <div className="quick-action-info">
+                  <span className="quick-action-title">Restaurants</span>
+                  <span className="quick-action-subtitle">Manage locations</span>
+                </div>
+                <div className="quick-action-arrow"><FontAwesomeIcon icon={faArrowRight} /></div>
+              </Link>
+            ) : (
+              <div className="quick-action-card disabled">
+                <div className="quick-action-icon gold">
+                  <FontAwesomeIcon icon={faStore} />
+                </div>
+                <div className="quick-action-info">
+                  <span className="quick-action-title">Restaurants</span>
+                  <span className="quick-action-subtitle">Access restricted</span>
+                </div>
+                <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
               </div>
-              <div className="quick-action-info">
-                <span className="quick-action-title">Restaurants</span>
-                <span className="quick-action-subtitle">Manage locations</span>
-              </div>
-              <div className="quick-action-arrow">→</div>
-            </Link>
+            )}
 
-            <Link to="/admin/menu" className="quick-action-card">
-              <div className="quick-action-icon green">
-                <span>🍽️</span>
+            {/* Menu Items - ADMIN and MANAGER only */}
+            {hasAccess(['ADMIN', 'MANAGER']) ? (
+              <Link to="/admin/menu" className="quick-action-card">
+                <div className="quick-action-icon green">
+                  <FontAwesomeIcon icon={faUtensils} />
+                </div>
+                <div className="quick-action-info">
+                  <span className="quick-action-title">Menu Items</span>
+                  <span className="quick-action-subtitle">Manage dishes</span>
+                </div>
+                <div className="quick-action-arrow"><FontAwesomeIcon icon={faArrowRight} /></div>
+              </Link>
+            ) : (
+              <div className="quick-action-card disabled">
+                <div className="quick-action-icon green">
+                  <FontAwesomeIcon icon={faUtensils} />
+                </div>
+                <div className="quick-action-info">
+                  <span className="quick-action-title">Menu Items</span>
+                  <span className="quick-action-subtitle">Access restricted</span>
+                </div>
+                <span className="lock-icon"><FontAwesomeIcon icon={faLock} /></span>
               </div>
-              <div className="quick-action-info">
-                <span className="quick-action-title">Menu Items</span>
-                <span className="quick-action-subtitle">Manage dishes</span>
-              </div>
-              <div className="quick-action-arrow">→</div>
-            </Link>
+            )}
 
+            {/* Kitchen - All roles */}
             <Link to="/admin/kitchen" className="quick-action-card">
               <div className="quick-action-icon purple">
-                <span>👨‍🍳</span>
+                <FontAwesomeIcon icon={faKitchenSet} />
               </div>
               <div className="quick-action-info">
                 <span className="quick-action-title">Kitchen Display</span>
                 <span className="quick-action-subtitle">View live orders</span>
               </div>
-              <div className="quick-action-arrow">→</div>
+              <div className="quick-action-arrow"><FontAwesomeIcon icon={faArrowRight} /></div>
             </Link>
 
+            {/* Orders - All roles */}
             <Link to="/admin/orders" className="quick-action-card">
               <div className="quick-action-icon orange">
-                <span>📋</span>
+                <FontAwesomeIcon icon={faClipboardList} />
               </div>
               <div className="quick-action-info">
                 <span className="quick-action-title">Orders</span>
                 <span className="quick-action-subtitle">View orders</span>
               </div>
-              <div className="quick-action-arrow">→</div>
+              <div className="quick-action-arrow"><FontAwesomeIcon icon={faArrowRight} /></div>
             </Link>
           </div>
         </section>
@@ -299,21 +377,25 @@ const AdminDashboard = () => {
           <section className="dashboard-card recent-restaurants">
             <div className="card-header">
               <h3>
-                <span className="card-header-icon">🏪</span>
+                <span className="card-header-icon"><FontAwesomeIcon icon={faStore} /></span>
                 Recent Restaurants
               </h3>
-              <Link to="/admin/restaurants" className="btn-view-all">
-                View All →
-              </Link>
+              {hasAccess(['ADMIN']) && (
+                <Link to="/admin/restaurants" className="btn-view-all">
+                  View All <FontAwesomeIcon icon={faArrowRight} />
+                </Link>
+              )}
             </div>
             <div className="card-content">
               {recentRestaurants.length === 0 ? (
                 <div className="empty-state">
-                  <span className="empty-icon">🏪</span>
+                  <span className="empty-icon"><FontAwesomeIcon icon={faStore} /></span>
                   <p>No restaurants yet</p>
-                  <Link to="/admin/restaurants" className="btn-add-new">
-                    Add Restaurant
-                  </Link>
+                  {hasAccess(['ADMIN']) && (
+                    <Link to="/admin/restaurants" className="btn-add-new">
+                      Add Restaurant
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="restaurant-list">
@@ -345,21 +427,25 @@ const AdminDashboard = () => {
           <section className="dashboard-card recent-items">
             <div className="card-header">
               <h3>
-                <span className="card-header-icon">🍽️</span>
+                <span className="card-header-icon"><FontAwesomeIcon icon={faUtensils} /></span>
                 Recent Menu Items
               </h3>
-              <Link to="/admin/menu" className="btn-view-all">
-                View All →
-              </Link>
+              {hasAccess(['ADMIN', 'MANAGER']) && (
+                <Link to="/admin/menu" className="btn-view-all">
+                  View All <FontAwesomeIcon icon={faArrowRight} />
+                </Link>
+              )}
             </div>
             <div className="card-content">
               {recentItems.length === 0 ? (
                 <div className="empty-state">
-                  <span className="empty-icon">🍽️</span>
+                  <span className="empty-icon"><FontAwesomeIcon icon={faUtensils} /></span>
                   <p>No menu items yet</p>
-                  <Link to="/admin/menu" className="btn-add-new">
-                    Add Menu Item
-                  </Link>
+                  {hasAccess(['ADMIN', 'MANAGER']) && (
+                    <Link to="/admin/menu" className="btn-add-new">
+                      Add Menu Item
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="items-grid-small">
@@ -371,7 +457,7 @@ const AdminDashboard = () => {
                     return (
                       <div key={id || index} className="item-mini-card">
                         <div className="item-mini-icon">
-                          {getCategoryIcon(category)}
+                          <FontAwesomeIcon icon={getCategoryIcon(category)} />
                         </div>
                         <div className="item-mini-info">
                           <span className="item-mini-name">{name}</span>

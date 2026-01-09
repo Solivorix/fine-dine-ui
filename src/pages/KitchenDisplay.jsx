@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { orderAPI, restaurantAPI, itemAPI } from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faArrowLeft, faSync, faPause, faUtensils, faUser, faMobile, faClock,
+  faChevronDown, faChevronRight, faPrint, faCheck, faKitchenSet, faBell,
+  faExclamationTriangle, faHourglass, faSquarePlus, faNoteSticky
+} from '@fortawesome/free-solid-svg-icons';
 import './KitchenDisplay.css';
 
 const KitchenDisplay = () => {
@@ -38,10 +44,10 @@ const KitchenDisplay = () => {
   };
 
   const STATUS_CONFIG = [
-    { value: 'pending', label: 'New Orders', color: '#f59e0b', bg: '#fef3c7', icon: '🆕' },
-    { value: 'confirmed', label: 'Confirmed', color: '#3b82f6', bg: '#dbeafe', icon: '✅' },
-    { value: 'preparing', label: 'In Kitchen', color: '#8b5cf6', bg: '#ede9fe', icon: '👨‍🍳' },
-    { value: 'ready', label: 'Ready', color: '#10b981', bg: '#d1fae5', icon: '🍽️' }
+    { value: 'pending', label: 'New Orders', color: '#f59e0b', bg: '#fef3c7', icon: faSquarePlus },
+    { value: 'confirmed', label: 'Confirmed', color: '#3b82f6', bg: '#dbeafe', icon: faCheck },
+    { value: 'preparing', label: 'In Kitchen', color: '#8b5cf6', bg: '#ede9fe', icon: faKitchenSet },
+    { value: 'ready', label: 'Ready', color: '#10b981', bg: '#d1fae5', icon: faUtensils }
   ];
 
   // Save preferences to localStorage
@@ -730,7 +736,7 @@ const KitchenDisplay = () => {
       <div className="kds-header">
         <div className="kds-header-left">
           <button className="btn-back" onClick={() => navigate('/admin')}>
-            <span className="back-icon">←</span>
+            <span className="back-icon"><FontAwesomeIcon icon={faArrowLeft} /></span>
             <span className="back-text">Back</span>
           </button>
           <div className="kds-title-section">
@@ -795,17 +801,17 @@ const KitchenDisplay = () => {
             ))}
           </select>
 
-          <button 
+          <button
             className={`btn-auto-refresh ${autoRefresh ? 'active' : ''}`}
             onClick={() => setAutoRefresh(!autoRefresh)}
             title={autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'}
           >
-            <span>{autoRefresh ? '🔄' : '⏸️'}</span>
+            <FontAwesomeIcon icon={autoRefresh ? faSync : faPause} />
             <span className="refresh-text">{autoRefresh ? 'Auto' : 'Manual'}</span>
           </button>
 
           <button className="btn-kds-refresh" onClick={fetchData}>
-            <span>🔄</span>
+            <FontAwesomeIcon icon={faSync} />
             <span>Refresh</span>
           </button>
         </div>
@@ -813,14 +819,14 @@ const KitchenDisplay = () => {
 
       {error && (
         <div className="kds-error">
-          <span>⚠️</span> {error}
+          <FontAwesomeIcon icon={faExclamationTriangle} /> {error}
         </div>
       )}
 
       <div className="kds-stats">
         {groupedByStatus.map(status => (
           <div key={status.value} className="kds-stat-card" style={{ borderLeftColor: status.color }}>
-            <span className="stat-icon">{status.icon}</span>
+            <span className="stat-icon"><FontAwesomeIcon icon={status.icon} /></span>
             <div className="stat-content">
               <span className="stat-value">{status.count}</span>
               <span className="stat-label">{status.label}</span>
@@ -851,7 +857,7 @@ const KitchenDisplay = () => {
           return (
             <div key={statusConfig.value} className="kds-status-section">
               <div className="kds-status-header" style={{ backgroundColor: statusConfig.bg }}>
-                <span className="status-icon">{statusConfig.icon}</span>
+                <span className="status-icon"><FontAwesomeIcon icon={statusConfig.icon} /></span>
                 <span className="status-title" style={{ color: statusConfig.color }}>
                   {statusConfig.label}
                 </span>
@@ -870,12 +876,12 @@ const KitchenDisplay = () => {
 
                   return (
                     <div key={group.key} className="kds-order-group-card">
-                      <div 
+                      <div
                         className="kds-group-header"
                         onClick={() => toggleGroup(group.key)}
                       >
                         <div className="group-table-number">
-                          <span className="table-icon">🍽️</span>
+                          <span className="table-icon"><FontAwesomeIcon icon={faUtensils} /></span>
                           <span className="table-text">Table {group.tableNumber}</span>
                           {wasAutoPrinted && autoPrintEnabled && <span className="auto-printed-badge">⚡</span>}
                           {autoStatusEnabled && <span className="auto-status-badge">🤖</span>}
@@ -883,12 +889,12 @@ const KitchenDisplay = () => {
 
                         <div className="group-customer-info">
                           <div className="customer-name">
-                            <span className="customer-icon">👤</span>
+                            <span className="customer-icon"><FontAwesomeIcon icon={faUser} /></span>
                             <span>{group.customerName}</span>
                           </div>
                           {group.customerPhone && (
                             <div className="customer-phone">
-                              <span>📱</span>
+                              <FontAwesomeIcon icon={faMobile} />
                               <span>{group.customerPhone}</span>
                             </div>
                           )}
@@ -906,30 +912,30 @@ const KitchenDisplay = () => {
                         </div>
 
                         {earliestTime && (
-                          <div 
+                          <div
                             className="group-time-badge"
                             style={{ color: getTimeColor(earliestTime) }}
                           >
-                            <span>⏱️</span>
+                            <FontAwesomeIcon icon={faClock} />
                             <span>{formatTime(earliestTime)}</span>
                           </div>
                         )}
 
                         <div className="group-expand-arrow">
-                          {isExpanded ? '▼' : '▶'}
+                          <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} />
                         </div>
                       </div>
 
                       {hasTimerWarning && statusConfig.value === 'pending' && (
                         <div className="modification-timer-warning-group">
-                          ⏳ Customer modification timer active
+                          <FontAwesomeIcon icon={faHourglass} /> Customer modification timer active
                           {autoPrintEnabled ? ' - Auto-print will trigger when timer expires' : ' - Manual print available'}
                         </div>
                       )}
 
                       {isExpanded && (
                         <div className="group-actions">
-                          <button 
+                          <button
                             className="btn-print-table"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -937,7 +943,7 @@ const KitchenDisplay = () => {
                             }}
                             title="Print entire table order (Manual)"
                           >
-                            🖨️ Print Table Order {wasAutoPrinted && autoPrintEnabled && '(Reprint)'}
+                            <FontAwesomeIcon icon={faPrint} /> Print Table Order {wasAutoPrinted && autoPrintEnabled && '(Reprint)'}
                           </button>
                         </div>
                       )}
@@ -958,11 +964,11 @@ const KitchenDisplay = () => {
                                 style={{ borderLeftColor: currentStatusConfig?.color }}
                               >
                                 <div className="order-item-header">
-                                  <span 
+                                  <span
                                     className="order-time"
                                     style={{ color: getTimeColor(order.createdAt) }}
                                   >
-                                    ⏱️ {formatTime(order.createdAt)}
+                                    <FontAwesomeIcon icon={faClock} /> {formatTime(order.createdAt)}
                                   </span>
                                 </div>
 
@@ -982,13 +988,13 @@ const KitchenDisplay = () => {
                                     <div className="order-notes-section">
                                       {order.itemNotes && (
                                         <div className="note-item">
-                                          <span className="note-icon">🍴</span>
+                                          <span className="note-icon"><FontAwesomeIcon icon={faUtensils} /></span>
                                           <span className="note-text">{order.itemNotes}</span>
                                         </div>
                                       )}
                                       {order.orderNotes && (
                                         <div className="note-item">
-                                          <span className="note-icon">📝</span>
+                                          <span className="note-icon"><FontAwesomeIcon icon={faNoteSticky} /></span>
                                           <span className="note-text">{order.orderNotes}</span>
                                         </div>
                                       )}
@@ -998,7 +1004,7 @@ const KitchenDisplay = () => {
 
                                 {withinModWindow && statusConfig.value === 'pending' && (
                                   <div className="modification-timer-warning">
-                                    ⏳ Can modify for {2 - Math.floor((new Date() - new Date(order.createdAt)) / 60000)} more min
+                                    <FontAwesomeIcon icon={faHourglass} /> Can modify for {2 - Math.floor((new Date() - new Date(order.createdAt)) / 60000)} more min
                                   </div>
                                 )}
 
@@ -1011,41 +1017,41 @@ const KitchenDisplay = () => {
 
                                 <div className="kds-order-actions">
                                   {statusConfig.value === 'pending' && (
-                                    <button 
+                                    <button
                                       className="btn-kds-action btn-confirm"
                                       onClick={() => handleStatusChange(order.orderId, 'confirmed')}
                                       disabled={withinModWindow}
                                       title={withinModWindow ? 'Wait for customer modification timer' : 'Manually confirm order'}
                                       style={withinModWindow ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                     >
-                                      {withinModWindow ? '⏳ Wait' : '✓ Confirm'}
+                                      {withinModWindow ? <><FontAwesomeIcon icon={faHourglass} /> Wait</> : <><FontAwesomeIcon icon={faCheck} /> Confirm</>}
                                     </button>
                                   )}
-                                  
+
                                   {statusConfig.value === 'confirmed' && (
-                                    <button 
+                                    <button
                                       className="btn-kds-action btn-start"
                                       onClick={() => handleStatusChange(order.orderId, 'preparing')}
                                     >
-                                      👨‍🍳 Start
+                                      <FontAwesomeIcon icon={faKitchenSet} /> Start
                                     </button>
                                   )}
-                                  
+
                                   {statusConfig.value === 'preparing' && (
-                                    <button 
+                                    <button
                                       className="btn-kds-action btn-ready"
                                       onClick={() => handleStatusChange(order.orderId, 'ready')}
                                     >
-                                      ✅ Ready
+                                      <FontAwesomeIcon icon={faCheck} /> Ready
                                     </button>
                                   )}
-                                  
+
                                   {statusConfig.value === 'ready' && (
-                                    <button 
+                                    <button
                                       className="btn-kds-action btn-served"
                                       onClick={() => handleMarkServed(order.orderId)}
                                     >
-                                      🍽️ Served
+                                      <FontAwesomeIcon icon={faUtensils} /> Served
                                     </button>
                                   )}
                                 </div>
@@ -1065,7 +1071,7 @@ const KitchenDisplay = () => {
 
       {orderGroups.length === 0 && (
         <div className="kds-empty-state">
-          <span className="empty-icon">🍽️</span>
+          <span className="empty-icon"><FontAwesomeIcon icon={faUtensils} size="2x" /></span>
           <h3>No Active Orders</h3>
           <p>New orders will appear here automatically</p>
         </div>

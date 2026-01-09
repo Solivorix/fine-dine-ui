@@ -1127,3 +1127,54 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ========================================
+   ROLE-BASED ACCESS CONTROL STYLES
+   Add these to your AdminDashboard.css
+   ======================================== */
+
+/* Disabled Sidebar Navigation Items */
+.nav-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+  position: relative;
+}
+
+.nav-item.disabled .lock-icon {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.nav-item.disabled:hover {
+  background-color: transparent;
+  transform: none;
+}
+
+/* Disabled Quick Action Cards */
+.quick-action-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+  position: relative;
+}
+
+.quick-action-card.disabled .lock-icon {
+  font-size: 20px;
+  color: var(--text-light);
+}
+
+.quick-action-card.disabled:hover {
+  border-color: var(--border-color);
+  box-shadow: var(--shadow-sm);
+  transform: none;
+}
+
+.quick-action-card.disabled .quick-action-icon {
+  opacity: 0.7;
+}
+
+.quick-action-card.disabled .quick-action-subtitle {
+  color: var(--danger);
+  font-weight: 600;
+}

@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { restaurantAPI, itemAPI, priceAPI, orderAPI } from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faUtensils, faChair, faUser, faMobile, faArrowRight, faCartShopping,
+  faClipboardList, faStore, faClock, faSeedling, faCake, faWineGlass,
+  faShrimp, faBowlFood, faPizzaSlice, faBurger, faBowlRice
+} from '@fortawesome/free-solid-svg-icons';
 import './TableBooking.css';
 
 const TableBooking = () => {
@@ -100,8 +106,8 @@ const TableBooking = () => {
   };
 
   const getCategoryIcon = (category) => {
-    const icons = { 'starter': '🥗', 'main': '🍛', 'dessert': '🍰', 'beverage': '🥤', 'appetizer': '🍤', 'soup': '🍲', 'biryani': '🍚', 'pizza': '🍕', 'burger': '🍔' };
-    return icons[category?.toLowerCase()] || '🍴';
+    const icons = { 'starter': faSeedling, 'main': faUtensils, 'dessert': faCake, 'beverage': faWineGlass, 'appetizer': faShrimp, 'soup': faBowlFood, 'biryani': faBowlRice, 'pizza': faPizzaSlice, 'burger': faBurger };
+    return icons[category?.toLowerCase()] || faUtensils;
   };
 
   const getFoodTypeInfo = (foodType) => {
@@ -285,13 +291,13 @@ const TableBooking = () => {
                 {getRestaurantLogo() ? (
                   <img src={getRestaurantLogo()} alt={restaurant?.name} />
                 ) : (
-                  <span>🍽️</span>
+                  <FontAwesomeIcon icon={faUtensils} size="2x" />
                 )}
               </div>
               <h1>{restaurant?.name}</h1>
               <p className="hero-subtitle">Delicious food, just a tap away</p>
               <div className="table-chip">
-                <span className="table-icon">🪑</span>
+                <span className="table-icon"><FontAwesomeIcon icon={faChair} /></span>
                 <span>Table {tableNumber}</span>
               </div>
             </div>
@@ -303,24 +309,24 @@ const TableBooking = () => {
               </div>
               <form onSubmit={handleStartOrder}>
                 <div className="input-field">
-                  <div className="input-icon">👤</div>
+                  <div className="input-icon"><FontAwesomeIcon icon={faUser} /></div>
                   <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Your name" required />
                 </div>
                 <div className="input-field">
-                  <div className="input-icon">📱</div>
+                  <div className="input-icon"><FontAwesomeIcon icon={faMobile} /></div>
                   <input type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Phone number" required />
                 </div>
                 <button type="submit" className="btn-hero">
                   <span>Explore Menu</span>
-                  <span className="btn-icon">→</span>
+                  <span className="btn-icon"><FontAwesomeIcon icon={faArrowRight} /></span>
                 </button>
               </form>
             </div>
 
             <div className="welcome-features">
-              <div className="feature"><span>📖</span><span>Browse Menu</span></div>
-              <div className="feature"><span>🛒</span><span>Add to Cart</span></div>
-              <div className="feature"><span>✨</span><span>Order Instantly</span></div>
+              <div className="feature"><FontAwesomeIcon icon={faUtensils} /><span>Browse Menu</span></div>
+              <div className="feature"><FontAwesomeIcon icon={faCartShopping} /><span>Add to Cart</span></div>
+              <div className="feature"><FontAwesomeIcon icon={faClipboardList} /><span>Order Instantly</span></div>
             </div>
           </div>
         </div>
@@ -361,8 +367,8 @@ const TableBooking = () => {
             </div>
 
             <div className="customer-info">
-              <div className="customer-detail"><span className="detail-icon">👤</span><span>{customerName}</span></div>
-              <div className="customer-detail"><span className="detail-icon">📱</span><span>{customerPhone}</span></div>
+              <div className="customer-detail"><span className="detail-icon"><FontAwesomeIcon icon={faUser} /></span><span>{customerName}</span></div>
+              <div className="customer-detail"><span className="detail-icon"><FontAwesomeIcon icon={faMobile} /></span><span>{customerPhone}</span></div>
             </div>
 
             {myOrders.length > 0 && (
@@ -403,7 +409,7 @@ const TableBooking = () => {
           </div>
 
           <button className="btn-order-more" onClick={() => setCurrentScreen('menu')}>
-            <span>🍴</span><span>Order More Items</span>
+            <FontAwesomeIcon icon={faUtensils} /><span>Order More Items</span>
           </button>
         </div>
       </div>
@@ -420,15 +426,15 @@ const TableBooking = () => {
             {getRestaurantLogo() ? (
               <img src={getRestaurantLogo()} alt={restaurant?.name} />
             ) : (
-              <span className="logo-placeholder">🍽️</span>
+              <span className="logo-placeholder"><FontAwesomeIcon icon={faUtensils} /></span>
             )}
           </div>
           <div className="brand-info">
             <h1>{restaurant?.name}</h1>
             <div className="brand-meta">
-              <span className="meta-badge"><span>🪑</span> Table {tableNumber}</span>
+              <span className="meta-badge"><FontAwesomeIcon icon={faChair} /> Table {tableNumber}</span>
               <span className="meta-divider">•</span>
-              <span className="meta-badge"><span>👤</span> {customerName}</span>
+              <span className="meta-badge"><FontAwesomeIcon icon={faUser} /> {customerName}</span>
             </div>
           </div>
         </div>
@@ -436,13 +442,13 @@ const TableBooking = () => {
         <div className="header-actions">
           {myOrders.length > 0 && (
             <button className="btn-header-action" onClick={() => setShowMyOrders(true)}>
-              <span>📋</span>
+              <FontAwesomeIcon icon={faClipboardList} />
               <span className="action-label">My Orders</span>
               <span className="action-badge">{myOrders.length}</span>
             </button>
           )}
           <button className={`btn-header-action btn-cart ${cart.length > 0 ? 'has-items' : ''}`} onClick={() => setShowCheckout(true)}>
-            <span>🛒</span>
+            <FontAwesomeIcon icon={faCartShopping} />
             <span className="action-label">Cart</span>
             {cart.length > 0 && <span className="action-badge">{getCartItemCount()}</span>}
           </button>
@@ -461,7 +467,7 @@ const TableBooking = () => {
         <div className="category-filters">
           {categories.map(cat => (
             <button key={cat} className={`category-pill ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
-              {cat === 'all' ? '🍴 All' : `${getCategoryIcon(cat)} ${cat}`}
+              {cat === 'all' ? <><FontAwesomeIcon icon={faUtensils} /> All</> : <><FontAwesomeIcon icon={getCategoryIcon(cat)} /> {cat}</>}
             </button>
           ))}
         </div>
@@ -473,7 +479,7 @@ const TableBooking = () => {
           {loading ? (
             <div className="loading-state"><div className="loading-spinner"></div><p>Loading delicious items...</p></div>
           ) : filteredItems.length === 0 ? (
-            <div className="empty-state"><span>🍽️</span><p>No items found</p></div>
+            <div className="empty-state"><FontAwesomeIcon icon={faUtensils} size="2x" /><p>No items found</p></div>
           ) : (
             <div className="menu-grid">
               {filteredItems.map((item) => {
@@ -490,7 +496,7 @@ const TableBooking = () => {
                 return (
                   <div key={itemId} className="menu-card">
                     <div className="card-image" onClick={() => setShowItemDetail(item)}>
-                      {imageUrl ? <img src={getImageUrl(imageUrl)} alt={productName} /> : <div className="card-image-placeholder">{getCategoryIcon(getItemField(item, 'itemCategory'))}</div>}
+                      {imageUrl ? <img src={getImageUrl(imageUrl)} alt={productName} /> : <div className="card-image-placeholder"><FontAwesomeIcon icon={getCategoryIcon(getItemField(item, 'itemCategory'))} /></div>}
                       <div className={`food-badge ${foodTypeInfo.class}`}></div>
                     </div>
                     <div className="card-content">
@@ -523,13 +529,13 @@ const TableBooking = () => {
         {/* Right Side Checkout Panel */}
         <aside className={`checkout-sidebar ${showCheckout ? 'open' : ''}`}>
           <div className="sidebar-header">
-            <h2>🛒 Your Cart</h2>
+            <h2><FontAwesomeIcon icon={faCartShopping} /> Your Cart</h2>
             <button className="btn-close-sidebar" onClick={() => setShowCheckout(false)}>×</button>
           </div>
 
           {cart.length === 0 ? (
             <div className="sidebar-empty">
-              <span>🛒</span>
+              <FontAwesomeIcon icon={faCartShopping} size="2x" />
               <p>Your cart is empty</p>
               <span className="empty-hint">Add items from the menu</span>
             </div>
@@ -538,16 +544,16 @@ const TableBooking = () => {
               <div className="sidebar-body">
                 <div className="sidebar-info">
                   <div className="info-item">
-                    <span className="info-icon">🏪</span>
+                    <span className="info-icon"><FontAwesomeIcon icon={faStore} /></span>
                     <div><label>Restaurant</label><strong>{restaurant?.name}</strong></div>
                   </div>
                   <div className="info-row">
                     <div className="info-item small">
-                      <span className="info-icon">🪑</span>
+                      <span className="info-icon"><FontAwesomeIcon icon={faChair} /></span>
                       <div><label>Table</label><strong>{tableNumber}</strong></div>
                     </div>
                     <div className="info-item small">
-                      <span className="info-icon">👤</span>
+                      <span className="info-icon"><FontAwesomeIcon icon={faUser} /></span>
                       <div><label>Name</label><strong>{customerName}</strong></div>
                     </div>
                   </div>
@@ -606,7 +612,7 @@ const TableBooking = () => {
             <span className="mobile-cart-count">{getCartItemCount()} items</span>
             <span className="mobile-cart-total">₹{getCartTotal()}</span>
           </div>
-          <div className="mobile-cart-action"><span>View Cart</span><span>🛒</span></div>
+          <div className="mobile-cart-action"><span>View Cart</span><FontAwesomeIcon icon={faCartShopping} /></div>
         </div>
       )}
 
@@ -617,7 +623,7 @@ const TableBooking = () => {
             <div className="modal-header"><h2>My Orders</h2><button className="btn-close" onClick={() => setShowMyOrders(false)}>×</button></div>
             <div className="modal-body">
               {myOrders.length === 0 ? (
-                <div className="empty-orders"><span>📋</span><p>No orders yet</p></div>
+                <div className="empty-orders"><FontAwesomeIcon icon={faClipboardList} size="2x" /><p>No orders yet</p></div>
               ) : (
                 <>
                   {myOrders.map((order, index) => {
@@ -636,7 +642,7 @@ const TableBooking = () => {
                           ) : <span className="qty-badge">×{order.quantity}</span>}
                           <span className="order-card-price">₹{order.price * order.quantity}</span>
                         </div>
-                        {editable && timeLeft && <div className="order-timer">⏱ {timeLeft} to modify</div>}
+                        {editable && timeLeft && <div className="order-timer"><FontAwesomeIcon icon={faClock} /> {timeLeft} to modify</div>}
                         {!editable && <div className="order-done">✓ Confirmed</div>}
                       </div>
                     );

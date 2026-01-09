@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { orderAPI, restaurantAPI, itemAPI } from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faArrowLeft, faSync, faClipboardList, faHourglass, faCheck, faKitchenSet,
+  faUtensils, faTruck, faCircleCheck, faTimesCircle, faUser, faPhone,
+  faNoteSticky, faTrash, faExclamationTriangle, faChevronDown, faChevronRight
+} from '@fortawesome/free-solid-svg-icons';
 import './OrderManagement.css';
 
 const OrderManagement = () => {
@@ -198,7 +204,7 @@ const OrderManagement = () => {
       <div className="page-header">
         <div className="header-left">
           <button className="btn-back" onClick={handleBack}>
-            <span className="back-icon">←</span>
+            <span className="back-icon"><FontAwesomeIcon icon={faArrowLeft} /></span>
             <span className="back-text">Back</span>
           </button>
           <div className="header-title">
@@ -207,69 +213,69 @@ const OrderManagement = () => {
           </div>
         </div>
         <button className="btn-refresh" onClick={fetchData}>
-          <span>🔄</span>
+          <FontAwesomeIcon icon={faSync} />
           <span>Refresh</span>
         </button>
       </div>
 
       {error && (
         <div className="error-message">
-          <span>⚠️</span> {error}
+          <FontAwesomeIcon icon={faExclamationTriangle} /> {error}
         </div>
       )}
 
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon">📋</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faClipboardList} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.total}</span>
             <span className="stat-label">Total Orders</span>
           </div>
         </div>
         <div className="stat-card pending">
-          <div className="stat-icon">⏳</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faHourglass} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.pending}</span>
             <span className="stat-label">Pending</span>
           </div>
         </div>
         <div className="stat-card confirmed">
-          <div className="stat-icon">✓</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faCheck} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.confirmed}</span>
             <span className="stat-label">Confirmed</span>
           </div>
         </div>
         <div className="stat-card preparing">
-          <div className="stat-icon">👨‍🍳</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faKitchenSet} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.preparing}</span>
             <span className="stat-label">Preparing</span>
           </div>
         </div>
         <div className="stat-card ready">
-          <div className="stat-icon">🍽️</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faUtensils} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.ready}</span>
             <span className="stat-label">Ready</span>
           </div>
         </div>
         <div className="stat-card served">
-          <div className="stat-icon">🚚</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faTruck} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.served}</span>
             <span className="stat-label">Served</span>
           </div>
         </div>
         <div className="stat-card completed">
-          <div className="stat-icon">✅</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faCircleCheck} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.completed}</span>
             <span className="stat-label">Completed</span>
           </div>
         </div>
         <div className="stat-card cancelled">
-          <div className="stat-icon">❌</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faTimesCircle} /></div>
           <div className="stat-info">
             <span className="stat-value">{stats.cancelled}</span>
             <span className="stat-label">Cancelled</span>
@@ -318,7 +324,7 @@ const OrderManagement = () => {
       <div className="orders-container">
         {orderGroups.length === 0 ? (
           <div className="empty-state">
-            <span>📋</span>
+            <FontAwesomeIcon icon={faClipboardList} size="2x" />
             <p>No orders found</p>
           </div>
         ) : (
@@ -337,17 +343,17 @@ const OrderManagement = () => {
                   >
                     <div className="group-info-main">
                       <div className="group-customer">
-                        <span className="customer-icon">👤</span>
+                        <span className="customer-icon"><FontAwesomeIcon icon={faUser} /></span>
                         <div className="customer-details">
                           <span className="customer-name">{group.customerName}</span>
                           {group.customerPhone && (
-                            <span className="customer-phone">📱 {group.customerPhone}</span>
+                            <span className="customer-phone"><FontAwesomeIcon icon={faPhone} /> {group.customerPhone}</span>
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="group-table-badge">
-                        <span className="table-icon">🍽️</span>
+                        <span className="table-icon"><FontAwesomeIcon icon={faUtensils} /></span>
                         <span className="table-text">Table {group.tableNumber}</span>
                       </div>
                     </div>
@@ -368,7 +374,7 @@ const OrderManagement = () => {
                     </div>
 
                     <div className="group-expand-icon">
-                      {isExpanded ? '▼' : '▶'}
+                      <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} />
                     </div>
                   </div>
 
@@ -413,13 +419,13 @@ const OrderManagement = () => {
                                     <div className="inline-notes">
                                       {order.orderNotes && (
                                         <div className="inline-note">
-                                          <span className="note-label">📝</span>
+                                          <span className="note-label"><FontAwesomeIcon icon={faNoteSticky} /></span>
                                           <span className="note-text">{order.orderNotes}</span>
                                         </div>
                                       )}
                                       {order.itemNotes && (
                                         <div className="inline-note">
-                                          <span className="note-label">🍴</span>
+                                          <span className="note-label"><FontAwesomeIcon icon={faUtensils} /></span>
                                           <span className="note-text">{order.itemNotes}</span>
                                         </div>
                                       )}
@@ -450,7 +456,7 @@ const OrderManagement = () => {
                                 </td>
                                 <td>
                                   <div className="action-buttons">
-                                    <button 
+                                    <button
                                       className="btn-action btn-delete"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -458,7 +464,7 @@ const OrderManagement = () => {
                                       }}
                                       title="Delete order"
                                     >
-                                      🗑️
+                                      <FontAwesomeIcon icon={faTrash} />
                                     </button>
                                   </div>
                                 </td>

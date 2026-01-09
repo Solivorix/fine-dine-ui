@@ -1,46 +1,46 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUtensils, faMobile, faChartLine } from '@fortawesome/free-solid-svg-icons';
 import './Login.css';
 
 const Login = () => {
-  const navigate = useNavigate();
-  const { login, forgotPassword, register } = useAuth();
+  const { login, forgotPassword } = useAuth();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
-  
-  // Registration fields
-  const [registerData, setRegisterData] = useState({
-    userName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    contactNumber: '',
-    role: 'STAFF'
-  });
-  const [registerError, setRegisterError] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    console.log('🔐 Login form submitted');
+
     try {
       const result = await login(loginId, password);
+      
+      console.log('📥 Login result:', result);
+
       if (result.success) {
-        navigate('/admin');
+        console.log('✅ Login successful! Navigating to dashboard...');
+        
+        // Force navigation to dashboard
+        window.location.href = '/admin';
+        
+        // Don't set loading to false - page will reload
       } else {
-        setError(result.error);
+        console.log('❌ Login failed:', result.error);
+        setError(result.error || 'Login failed. Please try again.');
+        setLoading(false);
       }
     } catch (err) {
+      console.error('💥 Unexpected error during login:', err);
       setError('An unexpected error occurred');
-    } finally {
       setLoading(false);
     }
   };
@@ -65,53 +65,6 @@ const Login = () => {
     }
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setRegisterError('');
-
-    // Validation
-    if (registerData.password !== registerData.confirmPassword) {
-      setRegisterError('Passwords do not match');
-      return;
-    }
-
-    if (registerData.contactNumber.length !== 10) {
-      setRegisterError('Mobile number must be 10 digits');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const result = await register({
-        user_name: registerData.userName,
-        email: registerData.email,
-        password: registerData.password,
-        contact_number: registerData.contactNumber,
-        role: registerData.role
-      });
-
-      if (result.success) {
-        alert('Registration successful! Please login with your credentials.');
-        setShowRegister(false);
-        setRegisterData({
-          userName: '',
-          email: '',
-          password: '',
-          confirmPassword: '',
-          contactNumber: '',
-          role: 'STAFF'
-        });
-      } else {
-        setRegisterError(result.error || 'Registration failed');
-      }
-    } catch (err) {
-      setRegisterError('An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="login-container">
       <div className="login-bg-pattern"></div>
@@ -130,7 +83,7 @@ const Login = () => {
             <p className="login-subtitle">Welcome back to your restaurant management</p>
           </div>
 
-          {!showForgotPassword && !showRegister ? (
+          {!showForgotPassword ? (
             <form onSubmit={handleLogin} className="login-form">
               {error && (
                 <div className="alert alert-error fade-in">
@@ -154,6 +107,7 @@ const Login = () => {
                   onChange={(e) => setLoginId(e.target.value)}
                   required
                   autoFocus
+                  disabled={loading}
                 />
               </div>
 
@@ -169,6 +123,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -176,6 +131,7 @@ const Login = () => {
                 type="button"
                 className="forgot-password-link"
                 onClick={() => setShowForgotPassword(true)}
+                disabled={loading}
               >
                 Forgot Password?
               </button>
@@ -196,134 +152,8 @@ const Login = () => {
                 )}
               </button>
 
-              <div style={{ textAlign: 'center', marginTop: 'var(--spacing-lg)' }}>
-                <p style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
-                  New staff member?{' '}
-                  <button
-                    type="button"
-                    className="register-link"
-                    onClick={() => setShowRegister(true)}
-                  >
-                    Register here
-                  </button>
-                </p>
-              </div>
-            </form>
-          ) : showRegister ? (
-            <form onSubmit={handleRegister} className="login-form">
-              <h3 style={{ marginBottom: 'var(--spacing-lg)' }}>Staff Registration</h3>
-              
-              {registerError && (
-                <div className="alert alert-error fade-in">
-                  <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/>
-                  </svg>
-                  {registerError}
-                </div>
-              )}
-
-              <div className="input-group">
-                <label htmlFor="userName" className="input-label">Full Name</label>
-                <input
-                  id="userName"
-                  type="text"
-                  className="input"
-                  placeholder="Enter your full name"
-                  value={registerData.userName}
-                  onChange={(e) => setRegisterData({...registerData, userName: e.target.value})}
-                  required
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="email" className="input-label">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  className="input"
-                  placeholder="Enter your email"
-                  value={registerData.email}
-                  onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
-                  required
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="contactNumber" className="input-label">Mobile Number</label>
-                <input
-                  id="contactNumber"
-                  type="tel"
-                  className="input"
-                  placeholder="Enter 10 digit mobile number"
-                  value={registerData.contactNumber}
-                  onChange={(e) => setRegisterData({...registerData, contactNumber: e.target.value.replace(/\D/g, '').slice(0, 10)})}
-                  required
-                  pattern="[0-9]{10}"
-                  maxLength="10"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="registerPassword" className="input-label">Password</label>
-                <input
-                  id="registerPassword"
-                  type="password"
-                  className="input"
-                  placeholder="Create a password"
-                  value={registerData.password}
-                  onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
-                  required
-                  minLength="6"
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="confirmPassword" className="input-label">Confirm Password</label>
-                <input
-                  id="confirmPassword"
-                  type="password"
-                  className="input"
-                  placeholder="Confirm your password"
-                  value={registerData.confirmPassword}
-                  onChange={(e) => setRegisterData({...registerData, confirmPassword: e.target.value})}
-                  required
-                />
-              </div>
-
-              <div className="input-group">
-                <label htmlFor="role" className="input-label">Role</label>
-                <select
-                  id="role"
-                  className="select"
-                  value={registerData.role}
-                  onChange={(e) => setRegisterData({...registerData, role: e.target.value})}
-                >
-                  <option value="STAFF">Staff</option>
-                  <option value="MANAGER">Manager</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-lg)' }}>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => {
-                    setShowRegister(false);
-                    setRegisterError('');
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  Back to Login
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                  style={{ flex: 1 }}
-                >
-                  {loading ? 'Registering...' : 'Register'}
-                </button>
+              <div style={{ textAlign: 'center', marginTop: 'var(--spacing-lg)', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                New users must be added by an administrator
               </div>
             </form>
           ) : (
@@ -348,6 +178,7 @@ const Login = () => {
                   value={forgotPasswordEmail}
                   onChange={(e) => setForgotPasswordEmail(e.target.value)}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -360,6 +191,7 @@ const Login = () => {
                     setForgotPasswordMessage('');
                   }}
                   style={{ flex: 1 }}
+                  disabled={loading}
                 >
                   Back
                 </button>
@@ -382,17 +214,17 @@ const Login = () => {
 
         <div className="login-features">
           <div className="feature-card fade-in" style={{ animationDelay: '0.2s' }}>
-            <div className="feature-icon">🍽️</div>
+            <div className="feature-icon"><FontAwesomeIcon icon={faUtensils} /></div>
             <h4>Multi-Restaurant</h4>
             <p>Manage multiple locations from one dashboard</p>
           </div>
           <div className="feature-card fade-in" style={{ animationDelay: '0.3s' }}>
-            <div className="feature-icon">📱</div>
+            <div className="feature-icon"><FontAwesomeIcon icon={faMobile} /></div>
             <h4>Table Booking</h4>
             <p>Seamless customer experience at each table</p>
           </div>
           <div className="feature-card fade-in" style={{ animationDelay: '0.4s' }}>
-            <div className="feature-icon">📊</div>
+            <div className="feature-icon"><FontAwesomeIcon icon={faChartLine} /></div>
             <h4>Real-time Orders</h4>
             <p>Track and manage orders instantly</p>
           </div>

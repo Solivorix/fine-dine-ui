@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { restaurantAPI } from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faArrowLeft, faStore, faExclamationTriangle, faSearch, faMapMarkerAlt,
+  faPhone, faEnvelope, faPen, faTrash, faClipboard, faImage, faCheck
+} from '@fortawesome/free-solid-svg-icons';
 import './RestaurantManagement.css';
 
 const RestaurantManagement = () => {
@@ -275,7 +280,7 @@ const RestaurantManagement = () => {
       <div className="page-header">
         <div className="header-left">
           <button className="btn-back" onClick={handleBack}>
-            <span className="back-icon">←</span>
+            <span className="back-icon"><FontAwesomeIcon icon={faArrowLeft} /></span>
             <span className="back-text">Back</span>
           </button>
           <div className="header-title">
@@ -291,7 +296,7 @@ const RestaurantManagement = () => {
 
       {error && (
         <div className="error-message">
-          <span className="error-icon">⚠️</span>
+          <span className="error-icon"><FontAwesomeIcon icon={faExclamationTriangle} /></span>
           {error}
         </div>
       )}
@@ -299,7 +304,7 @@ const RestaurantManagement = () => {
       {/* Stats Cards */}
       <div className="stats-container">
         <div className="stat-card">
-          <div className="stat-icon">🏪</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faStore} /></div>
           <div className="stat-info">
             <span className="stat-value">{restaurants.length}</span>
             <span className="stat-label">Total Restaurants</span>
@@ -310,7 +315,7 @@ const RestaurantManagement = () => {
       {/* Search Section */}
       <div className="filter-section">
         <div className="search-box">
-          <span className="search-icon">🔍</span>
+          <span className="search-icon"><FontAwesomeIcon icon={faSearch} /></span>
           <input
             type="text"
             placeholder="Search restaurants by name or address..."
@@ -325,7 +330,7 @@ const RestaurantManagement = () => {
       <div className="restaurants-grid">
         {filteredRestaurants.length === 0 ? (
           <div className="no-restaurants">
-            <div className="no-restaurants-icon">🏪</div>
+            <div className="no-restaurants-icon"><FontAwesomeIcon icon={faStore} /></div>
             <h3>No restaurants found</h3>
             <p>Add your first restaurant to get started!</p>
           </div>
@@ -351,7 +356,7 @@ const RestaurantManagement = () => {
                   />
                 ) : null}
                 <div className="image-placeholder" style={{ display: imageUrl ? 'none' : 'flex' }}>
-                  <span>🏪</span>
+                  <FontAwesomeIcon icon={faStore} />
                 </div>
               </div>
               <div className="card-content">
@@ -362,19 +367,19 @@ const RestaurantManagement = () => {
                 <div className="restaurant-details">
                   {restaurant.address && (
                     <div className="detail-item">
-                      <span className="detail-icon">📍</span>
+                      <span className="detail-icon"><FontAwesomeIcon icon={faMapMarkerAlt} /></span>
                       <span>{restaurant.address}</span>
                     </div>
                   )}
                   {primaryContactNumber && (
                     <div className="detail-item">
-                      <span className="detail-icon">📞</span>
+                      <span className="detail-icon"><FontAwesomeIcon icon={faPhone} /></span>
                       <span>{primaryContactNumber}</span>
                     </div>
                   )}
                   {primaryEmailId && (
                     <div className="detail-item">
-                      <span className="detail-icon">📧</span>
+                      <span className="detail-icon"><FontAwesomeIcon icon={faEnvelope} /></span>
                       <span>{primaryEmailId}</span>
                     </div>
                   )}
@@ -384,13 +389,13 @@ const RestaurantManagement = () => {
                     className="btn-action btn-edit"
                     onClick={() => openEditModal(restaurant)}
                   >
-                    <span>✏️</span> Edit
+                    <FontAwesomeIcon icon={faPen} /> Edit
                   </button>
                   <button
                     className="btn-action btn-delete"
                     onClick={() => handleDeleteRestaurant(id)}
                   >
-                    <span>🗑️</span> Delete
+                    <FontAwesomeIcon icon={faTrash} /> Delete
                   </button>
                 </div>
               </div>
@@ -410,7 +415,7 @@ const RestaurantManagement = () => {
             <form onSubmit={handleAddRestaurant}>
               <div className="form-group">
                 <label htmlFor="name">
-                  <span className="label-icon">🏪</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faStore} /></span>
                   Restaurant Name *
                 </label>
                 <input
@@ -426,7 +431,7 @@ const RestaurantManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="gstNo">
-                  <span className="label-icon">📋</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faClipboard} /></span>
                   GST Number
                 </label>
                 <input
@@ -441,7 +446,7 @@ const RestaurantManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="address">
-                  <span className="label-icon">📍</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faMapMarkerAlt} /></span>
                   Address
                 </label>
                 <input
@@ -457,7 +462,7 @@ const RestaurantManagement = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="primaryContactNumber">
-                    <span className="label-icon">📞</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faPhone} /></span>
                     Contact Number
                   </label>
                   <input
@@ -472,7 +477,7 @@ const RestaurantManagement = () => {
 
                 <div className="form-group">
                   <label htmlFor="primaryEmailId">
-                    <span className="label-icon">📧</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faEnvelope} /></span>
                     Email
                   </label>
                   <input
@@ -489,7 +494,7 @@ const RestaurantManagement = () => {
               {/* Image Upload */}
               <div className="form-group">
                 <label>
-                  <span className="label-icon">🖼️</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faImage} /></span>
                   Restaurant Image
                 </label>
                 <div className="image-upload-container">
@@ -541,7 +546,7 @@ const RestaurantManagement = () => {
             <form onSubmit={handleEditRestaurant}>
               <div className="form-group">
                 <label htmlFor="edit_name">
-                  <span className="label-icon">🏪</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faStore} /></span>
                   Restaurant Name *
                 </label>
                 <input
@@ -557,7 +562,7 @@ const RestaurantManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="edit_gstNo">
-                  <span className="label-icon">📋</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faClipboard} /></span>
                   GST Number
                 </label>
                 <input
@@ -572,7 +577,7 @@ const RestaurantManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="edit_address">
-                  <span className="label-icon">📍</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faMapMarkerAlt} /></span>
                   Address
                 </label>
                 <input
@@ -588,7 +593,7 @@ const RestaurantManagement = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="edit_primaryContactNumber">
-                    <span className="label-icon">📞</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faPhone} /></span>
                     Contact Number
                   </label>
                   <input
@@ -603,7 +608,7 @@ const RestaurantManagement = () => {
 
                 <div className="form-group">
                   <label htmlFor="edit_primaryEmailId">
-                    <span className="label-icon">📧</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faEnvelope} /></span>
                     Email
                   </label>
                   <input
@@ -620,7 +625,7 @@ const RestaurantManagement = () => {
               {/* Image Upload */}
               <div className="form-group">
                 <label>
-                  <span className="label-icon">🖼️</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faImage} /></span>
                   Restaurant Image
                 </label>
                 <div className="image-upload-container">
@@ -652,7 +657,7 @@ const RestaurantManagement = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={uploading}>
-                  <span className="btn-icon">✓</span>
+                  <span className="btn-icon"><FontAwesomeIcon icon={faCheck} /></span>
                   Update Restaurant
                 </button>
               </div>

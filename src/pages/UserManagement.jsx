@@ -1,10 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { userAPI, restaurantAPI } from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faCrown, faChartBar, faUser, faUtensils, faKitchenSet, faMoneyBill,
+  faArrowLeft, faBan, faExclamationTriangle, faUsers, faStore,
+  faSearch, faPen, faTrash, faEnvelope, faLock, faEye, faEyeSlash,
+  faPhone, faSignature, faCheck
+} from '@fortawesome/free-solid-svg-icons';
 import './UserManagement.css';
 
 const UserManagement = () => {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +24,22 @@ const UserManagement = () => {
   const [filterRestaurant, setFilterRestaurant] = useState('all');
   const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // CRITICAL: Check if current user is ADMIN (case-insensitive)
+  const isAdmin = () => {
+    if (!currentUser || !currentUser.role) {
+      console.log('❌ No user or role found');
+      return false;
+    }
+    const userRole = currentUser.role.toUpperCase();
+    const isAdminRole = userRole === 'ADMIN';
+    console.log('🔍 Role Check:', { 
+      currentRole: currentUser.role, 
+      normalized: userRole, 
+      isAdmin: isAdminRole 
+    });
+    return isAdminRole;
+  };
 
   // Form uses snake_case to match backend DTO JSON property names
   const [userForm, setUserForm] = useState({
@@ -28,15 +53,27 @@ const UserManagement = () => {
   });
 
   const roles = [
-    { value: 'admin', label: 'Admin', icon: '👑' },
-    { value: 'manager', label: 'Manager', icon: '📊' },
-    { value: 'staff', label: 'Staff', icon: '👤' },
-    { value: 'waiter', label: 'Waiter', icon: '🍽️' },
-    { value: 'chef', label: 'Chef', icon: '👨‍🍳' },
-    { value: 'cashier', label: 'Cashier', icon: '💰' }
+    { value: 'admin', label: 'Admin', icon: faCrown },
+    { value: 'manager', label: 'Manager', icon: faChartBar },
+    { value: 'staff', label: 'Staff', icon: faUser },
+    { value: 'waiter', label: 'Waiter', icon: faUtensils },
+    { value: 'chef', label: 'Chef', icon: faKitchenSet },
+    { value: 'cashier', label: 'Cashier', icon: faMoneyBill }
   ];
 
   useEffect(() => {
+    console.log('🔄 UserManagement component mounted');
+    console.log('👤 Current user:', currentUser);
+    
+    // CRITICAL: Verify admin access on mount
+    if (!isAdmin()) {
+      console.log('❌ ACCESS DENIED: User is not an admin');
+      alert('Access Denied: Only administrators can manage users.');
+      navigate('/admin');
+      return;
+    }
+
+    console.log('✅ Admin access verified');
     fetchUsers();
     fetchRestaurants();
   }, []);
@@ -91,6 +128,13 @@ const UserManagement = () => {
   const handleAddUser = async (e) => {
     e.preventDefault();
 
+    // CRITICAL: Admin check before adding user
+    if (!isAdmin()) {
+      console.log('❌ BLOCKED: Non-admin tried to add user');
+      alert('Access Denied: Only administrators can add users.');
+      return;
+    }
+
     if (!userForm.restaurant_id) {
       alert('Please select a restaurant');
       return;
@@ -122,18 +166,27 @@ const UserManagement = () => {
     }
 
     try {
+      console.log('➕ Adding new user...');
       await userAPI.create(userForm);
+      console.log('✅ User created successfully');
       setShowAddModal(false);
       resetForm();
       fetchUsers();
     } catch (err) {
-      console.error('Error creating user:', err);
+      console.error('❌ Error creating user:', err);
       alert('Failed to create user. Please try again.');
     }
   };
 
   const handleEditUser = async (e) => {
     e.preventDefault();
+
+    // CRITICAL: Admin check before editing user
+    if (!isAdmin()) {
+      console.log('❌ BLOCKED: Non-admin tried to edit user');
+      alert('Access Denied: Only administrators can edit users.');
+      return;
+    }
 
     if (!selectedUser) return;
 
@@ -163,6 +216,7 @@ const UserManagement = () => {
     }
 
     try {
+      console.log('✏️ Updating user...');
       const updateData = { ...userForm };
       if (!updateData.password) {
         delete updateData.password;
@@ -171,29 +225,48 @@ const UserManagement = () => {
       updateData.updated_by = 'admin';
 
       await userAPI.patch(selectedUser.user_id, updateData);
+      console.log('✅ User updated successfully');
       setShowEditModal(false);
       setSelectedUser(null);
       resetForm();
       fetchUsers();
     } catch (err) {
-      console.error('Error updating user:', err);
+      console.error('❌ Error updating user:', err);
       alert('Failed to update user. Please try again.');
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    // CRITICAL: Admin check before deleting user
+    if (!isAdmin()) {
+      console.log('❌ BLOCKED: Non-admin tried to delete user');
+      alert('Access Denied: Only administrators can delete users.');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
 
     try {
+      console.log('🗑️ Deleting user...');
       await userAPI.delete(userId);
+      console.log('✅ User deleted successfully');
       fetchUsers();
     } catch (err) {
-      console.error('Error deleting user:', err);
+      console.error('❌ Error deleting user:', err);
       alert('Failed to delete user. Please try again.');
     }
   };
 
   const openEditModal = (user) => {
+    // CRITICAL: Admin check before opening edit modal
+    if (!isAdmin()) {
+      console.log('❌ BLOCKED: Non-admin tried to open edit modal');
+      alert('Access Denied: Only administrators can edit users.');
+      return;
+    }
+
     setSelectedUser(user);
     setUserForm({
       user_name: user.user_name || '',
@@ -205,6 +278,16 @@ const UserManagement = () => {
       updated_by: 'admin'
     });
     setShowEditModal(true);
+  };
+
+  const openAddModal = () => {
+    // CRITICAL: Admin check before opening add modal
+    if (!isAdmin()) {
+      console.log('❌ BLOCKED: Non-admin tried to open add modal');
+      alert('Access Denied: Only administrators can add users.');
+      return;
+    }
+    setShowAddModal(true);
   };
 
   const resetForm = () => {
@@ -249,12 +332,12 @@ const UserManagement = () => {
       chef: 'role-chef',
       cashier: 'role-cashier'
     };
-    return roleClasses[role] || 'role-default';
+    return roleClasses[role?.toLowerCase()] || 'role-default';
   };
 
   const getRoleIcon = (role) => {
-    const roleData = roles.find(r => r.value === role);
-    return roleData ? roleData.icon : '👤';
+    const roleData = roles.find(r => r.value === role?.toLowerCase());
+    return roleData ? roleData.icon : faUser;
   };
 
   if (loading) {
@@ -266,21 +349,62 @@ const UserManagement = () => {
     );
   }
 
+  // CRITICAL: Show access denied if not admin
+  if (!isAdmin()) {
+    return (
+      <div className="user-management">
+        <div className="page-header">
+          <div className="header-left">
+            <button className="btn-back" onClick={() => navigate('/admin')}>
+              <span className="back-icon"><FontAwesomeIcon icon={faArrowLeft} /></span>
+              <span className="back-text">Back to Dashboard</span>
+            </button>
+          </div>
+        </div>
+        <div style={{ 
+          maxWidth: '600px', 
+          margin: '100px auto', 
+          textAlign: 'center',
+          padding: '40px',
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ fontSize: '64px', marginBottom: '20px' }}><FontAwesomeIcon icon={faBan} /></div>
+          <h2 style={{ color: '#c0392b', marginBottom: '10px' }}>Access Denied</h2>
+          <p style={{ color: '#666', marginBottom: '30px' }}>
+            Only administrators can manage users.
+          </p>
+          <p style={{ color: '#999', fontSize: '14px' }}>
+            Your role: <strong>{currentUser?.role || 'Unknown'}</strong>
+          </p>
+          <button 
+            onClick={() => navigate('/admin')} 
+            className="btn btn-primary"
+            style={{ marginTop: '20px' }}
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="user-management">
       {/* Header Section */}
       <div className="page-header">
         <div className="header-left">
           <button className="btn-back" onClick={handleBack}>
-            <span className="back-icon">←</span>
+            <span className="back-icon"><FontAwesomeIcon icon={faArrowLeft} /></span>
             <span className="back-text">Back</span>
           </button>
           <div className="header-title">
             <h1>User Management</h1>
-            <p className="header-subtitle">Manage your restaurant staff and users</p>
+            <p className="header-subtitle">Manage your restaurant staff and users (Admin Only)</p>
           </div>
         </div>
-        <button className="btn-primary btn-add" onClick={() => setShowAddModal(true)}>
+        <button className="btn-primary btn-add" onClick={openAddModal}>
           <span className="btn-icon">+</span>
           Add User
         </button>
@@ -288,38 +412,38 @@ const UserManagement = () => {
 
       {error && (
         <div className="error-message">
-          <span className="error-icon">⚠️</span>
+          <span className="error-icon"><FontAwesomeIcon icon={faExclamationTriangle} /></span>
           {error}
         </div>
       )}
 
       {restaurants.length === 0 && (
         <div className="alert-warning">
-          <span className="alert-icon">⚠️</span>
-          <span>No restaurants found. Please <a href="/restaurants">add a restaurant</a> first before creating users.</span>
+          <span className="alert-icon"><FontAwesomeIcon icon={faExclamationTriangle} /></span>
+          <span>No restaurants found. Please <a href="/admin/restaurants">add a restaurant</a> first before creating users.</span>
         </div>
       )}
 
       {/* Stats Cards */}
       <div className="stats-container">
         <div className="stat-card">
-          <div className="stat-icon">👥</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faUsers} /></div>
           <div className="stat-info">
             <span className="stat-value">{users.length}</span>
             <span className="stat-label">Total Users</span>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">🏪</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faStore} /></div>
           <div className="stat-info">
             <span className="stat-value">{restaurants.length}</span>
             <span className="stat-label">Restaurants</span>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon">👑</div>
+          <div className="stat-icon"><FontAwesomeIcon icon={faCrown} /></div>
           <div className="stat-info">
-            <span className="stat-value">{users.filter(u => u.role === 'admin').length}</span>
+            <span className="stat-value">{users.filter(u => u.role?.toLowerCase() === 'admin').length}</span>
             <span className="stat-label">Admins</span>
           </div>
         </div>
@@ -328,7 +452,7 @@ const UserManagement = () => {
       {/* Filter Section */}
       <div className="filter-section">
         <div className="search-box">
-          <span className="search-icon">🔍</span>
+          <span className="search-icon"><FontAwesomeIcon icon={faSearch} /></span>
           <input
             type="text"
             placeholder="Search users by name or email..."
@@ -359,7 +483,7 @@ const UserManagement = () => {
       <div className="users-table-container">
         {filteredUsers.length === 0 ? (
           <div className="no-users">
-            <div className="no-users-icon">👤</div>
+            <div className="no-users-icon"><FontAwesomeIcon icon={faUser} /></div>
             <h3>No users found</h3>
             <p>Add your first user to get started!</p>
           </div>
@@ -393,7 +517,7 @@ const UserManagement = () => {
                   </td>
                   <td>
                     <span className={`role-badge ${getRoleBadgeClass(user.role)}`}>
-                      <span className="role-icon">{getRoleIcon(user.role)}</span>
+                      <span className="role-icon"><FontAwesomeIcon icon={getRoleIcon(user.role)} /></span>
                       {user.role}
                     </span>
                   </td>
@@ -409,14 +533,14 @@ const UserManagement = () => {
                         onClick={() => openEditModal(user)}
                         title="Edit user"
                       >
-                        ✏️
+                        <FontAwesomeIcon icon={faPen} />
                       </button>
                       <button
                         className="btn-action btn-delete"
                         onClick={() => handleDeleteUser(user.user_id)}
                         title="Delete user"
                       >
-                        🗑️
+                        <FontAwesomeIcon icon={faTrash} />
                       </button>
                     </div>
                   </td>
@@ -439,7 +563,7 @@ const UserManagement = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="restaurant_id">
-                    <span className="label-icon">🏪</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faStore} /></span>
                     Restaurant *
                   </label>
                   <select
@@ -460,7 +584,7 @@ const UserManagement = () => {
 
                 <div className="form-group">
                   <label htmlFor="role">
-                    <span className="label-icon">👤</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faUser} /></span>
                     Role *
                   </label>
                   <select
@@ -472,7 +596,7 @@ const UserManagement = () => {
                   >
                     {roles.map(role => (
                       <option key={role.value} value={role.value}>
-                        {role.icon} {role.label}
+                        {role.label}
                       </option>
                     ))}
                   </select>
@@ -481,7 +605,7 @@ const UserManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="user_name">
-                  <span className="label-icon">✍️</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faSignature} /></span>
                   Username *
                 </label>
                 <input
@@ -497,7 +621,7 @@ const UserManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="email">
-                  <span className="label-icon">📧</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faEnvelope} /></span>
                   Email *
                 </label>
                 <input
@@ -513,7 +637,7 @@ const UserManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="password">
-                  <span className="label-icon">🔒</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faLock} /></span>
                   Password *
                 </label>
                 <div className="password-input-container">
@@ -532,14 +656,14 @@ const UserManagement = () => {
                     className="toggle-password"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? '🙈' : '👁️'}
+                    <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
                   </button>
                 </div>
               </div>
 
               <div className="form-group">
                 <label htmlFor="contact_number">
-                  <span className="label-icon">📱</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faPhone} /></span>
                   Contact Number
                 </label>
                 <input
@@ -578,7 +702,7 @@ const UserManagement = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="edit_restaurant_id">
-                    <span className="label-icon">🏪</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faStore} /></span>
                     Restaurant *
                   </label>
                   <select
@@ -599,7 +723,7 @@ const UserManagement = () => {
 
                 <div className="form-group">
                   <label htmlFor="edit_role">
-                    <span className="label-icon">👤</span>
+                    <span className="label-icon"><FontAwesomeIcon icon={faUser} /></span>
                     Role *
                   </label>
                   <select
@@ -611,7 +735,7 @@ const UserManagement = () => {
                   >
                     {roles.map(role => (
                       <option key={role.value} value={role.value}>
-                        {role.icon} {role.label}
+                        {role.label}
                       </option>
                     ))}
                   </select>
@@ -620,7 +744,7 @@ const UserManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="edit_user_name">
-                  <span className="label-icon">✍️</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faSignature} /></span>
                   Username *
                 </label>
                 <input
@@ -636,7 +760,7 @@ const UserManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="edit_email">
-                  <span className="label-icon">📧</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faEnvelope} /></span>
                   Email *
                 </label>
                 <input
@@ -652,7 +776,7 @@ const UserManagement = () => {
 
               <div className="form-group">
                 <label htmlFor="edit_password">
-                  <span className="label-icon">🔒</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faLock} /></span>
                   New Password
                   <span className="label-hint">(leave blank to keep current)</span>
                 </label>
@@ -671,14 +795,14 @@ const UserManagement = () => {
                     className="toggle-password"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? '🙈' : '👁️'}
+                    <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
                   </button>
                 </div>
               </div>
 
               <div className="form-group">
                 <label htmlFor="edit_contact_number">
-                  <span className="label-icon">📱</span>
+                  <span className="label-icon"><FontAwesomeIcon icon={faPhone} /></span>
                   Contact Number
                 </label>
                 <input
@@ -696,7 +820,7 @@ const UserManagement = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary">
-                  <span className="btn-icon">✓</span>
+                  <span className="btn-icon"><FontAwesomeIcon icon={faCheck} /></span>
                   Update User
                 </button>
               </div>

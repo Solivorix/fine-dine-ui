@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { itemAPI, priceAPI, restaurantAPI, uploadAPI } from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faArrowLeft, faSync, faUtensils, faBox, faCircle, faMoneyBill,
+  faSearch, faStore, faPen, faTrash, faPlus, faCamera, faSave,
+  faTimes, faTag, faSeedling, faCake, faWineGlass, faShrimp, faBowlFood,
+  faLeaf, faPizzaSlice, faBurger, faFish, faFire, faCoffee, faBreadSlice,
+  faBowlRice, faHourglass, faStickyNote
+} from '@fortawesome/free-solid-svg-icons';
 import './MenuManagement.css';
 
 const MenuManagement = () => {
@@ -39,9 +47,9 @@ const MenuManagement = () => {
 
   // Food types
   const foodTypes = [
-    { value: 'veg', label: 'Vegetarian', icon: '🟢' },
-    { value: 'non-veg', label: 'Non-Vegetarian', icon: '🔴' },
-    { value: 'egg', label: 'Contains Egg', icon: '🟡' }
+    { value: 'veg', label: 'Vegetarian', icon: faCircle, color: '#22c55e' },
+    { value: 'non-veg', label: 'Non-Vegetarian', icon: faCircle, color: '#ef4444' },
+    { value: 'egg', label: 'Contains Egg', icon: faCircle, color: '#eab308' }
   ];
 
   // Portion sizes
@@ -339,18 +347,18 @@ const MenuManagement = () => {
 
   const getFoodTypeInfo = (foodType) => {
     const type = foodTypes.find(ft => ft.value === foodType);
-    return type || { value: foodType, label: foodType, icon: '⚪' };
+    return type || { value: foodType, label: foodType, icon: faCircle, color: '#9ca3af' };
   };
 
   const getCategoryIcon = (category) => {
     const icons = {
-      'starter': '🥗', 'main': '🍛', 'dessert': '🍰', 'beverage': '🥤',
-      'appetizer': '🍤', 'soup': '🍲', 'salad': '🥬', 'pizza': '🍕',
-      'burger': '🍔', 'pasta': '🍝', 'seafood': '🦐', 'grill': '🥩',
-      'breakfast': '🍳', 'sandwich': '🥪', 'biryani': '🍚', 'chinese': '🥡',
-      'indian': '🍛', 'continental': '🍽️', 'snacks': '🍿', 'other': '🍴'
+      'starter': faSeedling, 'main': faUtensils, 'dessert': faCake, 'beverage': faWineGlass,
+      'appetizer': faShrimp, 'soup': faBowlFood, 'salad': faLeaf, 'pizza': faPizzaSlice,
+      'burger': faBurger, 'pasta': faBowlFood, 'seafood': faFish, 'grill': faFire,
+      'breakfast': faCoffee, 'sandwich': faBreadSlice, 'biryani': faBowlRice, 'chinese': faBowlFood,
+      'indian': faUtensils, 'continental': faUtensils, 'snacks': faUtensils, 'other': faUtensils
     };
-    return icons[category?.toLowerCase()] || '🍴';
+    return icons[category?.toLowerCase()] || faUtensils;
   };
 
   // FRONTEND FILTERING
@@ -388,18 +396,18 @@ const MenuManagement = () => {
         <div className="mm-header-content">
           <div className="mm-header-left">
             <button className="mm-back-btn" onClick={() => navigate('/admin')}>
-              <span className="back-icon">←</span>
+              <span className="back-icon"><FontAwesomeIcon icon={faArrowLeft} /></span>
               <span className="back-text">Back</span>
             </button>
             <div className="mm-header-title-section">
-              <h1>🍽️ Menu Management</h1>
+              <h1><FontAwesomeIcon icon={faUtensils} /> Menu Management</h1>
               <p className="mm-header-subtitle">Manage items and prices</p>
             </div>
           </div>
           <div className="mm-header-actions">
-            <button className="mm-refresh-btn" onClick={fetchData}>🔄</button>
+            <button className="mm-refresh-btn" onClick={fetchData}><FontAwesomeIcon icon={faSync} /></button>
             <button className="mm-btn-primary" onClick={() => setShowItemModal(true)}>
-              + Add Item
+              <FontAwesomeIcon icon={faPlus} /> Add Item
             </button>
           </div>
         </div>
@@ -408,28 +416,28 @@ const MenuManagement = () => {
       {/* Stats */}
       <div className="mm-stats">
         <div className="mm-stat-card">
-          <div className="mm-stat-icon">📦</div>
+          <div className="mm-stat-icon"><FontAwesomeIcon icon={faBox} /></div>
           <div className="mm-stat-info">
             <span className="mm-stat-value">{items.length}</span>
             <span className="mm-stat-label">Items</span>
           </div>
         </div>
         <div className="mm-stat-card veg">
-          <div className="mm-stat-icon">🟢</div>
+          <div className="mm-stat-icon"><FontAwesomeIcon icon={faCircle} style={{color: '#22c55e'}} /></div>
           <div className="mm-stat-info">
             <span className="mm-stat-value">{items.filter(i => getItemField(i, 'foodType') === 'veg').length}</span>
             <span className="mm-stat-label">Veg</span>
           </div>
         </div>
         <div className="mm-stat-card nonveg">
-          <div className="mm-stat-icon">🔴</div>
+          <div className="mm-stat-icon"><FontAwesomeIcon icon={faCircle} style={{color: '#ef4444'}} /></div>
           <div className="mm-stat-info">
             <span className="mm-stat-value">{items.filter(i => getItemField(i, 'foodType') === 'non-veg').length}</span>
             <span className="mm-stat-label">Non-Veg</span>
           </div>
         </div>
         <div className="mm-stat-card">
-          <div className="mm-stat-icon">💰</div>
+          <div className="mm-stat-icon"><FontAwesomeIcon icon={faMoneyBill} /></div>
           <div className="mm-stat-info">
             <span className="mm-stat-value">{prices.length}</span>
             <span className="mm-stat-label">Prices</span>
@@ -440,7 +448,7 @@ const MenuManagement = () => {
       {/* Filters */}
       <div className="mm-filters">
         <div className="mm-search">
-          <span className="mm-search-icon">🔍</span>
+          <span className="mm-search-icon"><FontAwesomeIcon icon={faSearch} /></span>
           <input
             type="text"
             placeholder="Search items..."
@@ -461,14 +469,14 @@ const MenuManagement = () => {
         <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
           <option value="all">All Categories</option>
           {availableCategories.map(cat => (
-            <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>
+            <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
 
         <select value={filterFoodType} onChange={(e) => setFilterFoodType(e.target.value)}>
           <option value="all">All Types</option>
           {foodTypes.map(ft => (
-            <option key={ft.value} value={ft.value}>{ft.icon} {ft.label}</option>
+            <option key={ft.value} value={ft.value}>{ft.label}</option>
           ))}
         </select>
 
@@ -487,7 +495,7 @@ const MenuManagement = () => {
 
         {filteredItems.length === 0 ? (
           <div className="mm-empty">
-            <span>🍽️</span>
+            <FontAwesomeIcon icon={faUtensils} size="2x" />
             <h3>No Items Found</h3>
             <button className="mm-btn-primary" onClick={() => setShowItemModal(true)}>Add Item</button>
           </div>
@@ -509,7 +517,7 @@ const MenuManagement = () => {
                 <div key={itemId} className={`mm-item-card ${itemStatus !== 'available' ? 'unavailable' : ''}`}>
                   {/* Food Type Badge */}
                   <div className={`mm-food-type-badge ${foodType || ''}`}>
-                    {foodTypeInfo.icon}
+                    <FontAwesomeIcon icon={foodTypeInfo.icon} style={{color: foodTypeInfo.color}} />
                   </div>
 
                   {/* Item Image */}
@@ -522,7 +530,7 @@ const MenuManagement = () => {
                       />
                     ) : (
                       <div className="mm-item-placeholder">
-                        {getCategoryIcon(itemCategory)}
+                        <FontAwesomeIcon icon={getCategoryIcon(itemCategory)} />
                       </div>
                     )}
                     {itemStatus !== 'available' && (
@@ -536,16 +544,16 @@ const MenuManagement = () => {
                     {productDescription && <p className="mm-item-desc">{productDescription}</p>}
                     
                     <div className="mm-item-meta">
-                      <span>🏪 {getRestaurantName(restaurantId)}</span>
-                      {itemCategory && <span>{getCategoryIcon(itemCategory)} {itemCategory}</span>}
+                      <span><FontAwesomeIcon icon={faStore} /> {getRestaurantName(restaurantId)}</span>
+                      {itemCategory && <span><FontAwesomeIcon icon={getCategoryIcon(itemCategory)} /> {itemCategory}</span>}
                     </div>
 
                     {/* Prices */}
                     <div className="mm-item-prices">
                       <div className="mm-prices-header">
-                        <span>💰 Prices</span>
+                        <span><FontAwesomeIcon icon={faMoneyBill} /> Prices</span>
                         <button className="mm-btn-add-price" onClick={() => handleAddPrice(item)}>
-                          + Add
+                          <FontAwesomeIcon icon={faPlus} /> Add
                         </button>
                       </div>
                       {itemPrices.length > 0 ? (
@@ -560,8 +568,8 @@ const MenuManagement = () => {
                                   <span className="mm-price-amount">₹{price.price}</span>
                                 </div>
                                 <div className="mm-price-actions">
-                                  <button onClick={() => handleEditPrice(price, item)}>✏️</button>
-                                  <button onClick={() => handleDeletePrice(priceId)}>🗑️</button>
+                                  <button onClick={() => handleEditPrice(price, item)}><FontAwesomeIcon icon={faPen} /></button>
+                                  <button onClick={() => handleDeletePrice(priceId)}><FontAwesomeIcon icon={faTrash} /></button>
                                 </div>
                               </div>
                             );
@@ -574,8 +582,8 @@ const MenuManagement = () => {
 
                     {/* Actions */}
                     <div className="mm-item-actions">
-                      <button className="mm-btn-edit" onClick={() => handleEditItem(item)}>✏️ Edit</button>
-                      <button className="mm-btn-delete" onClick={() => handleDeleteItem(itemId)}>🗑️</button>
+                      <button className="mm-btn-edit" onClick={() => handleEditItem(item)}><FontAwesomeIcon icon={faPen} /> Edit</button>
+                      <button className="mm-btn-delete" onClick={() => handleDeleteItem(itemId)}><FontAwesomeIcon icon={faTrash} /></button>
                     </div>
                   </div>
                 </div>
@@ -590,28 +598,28 @@ const MenuManagement = () => {
         <div className="mm-modal-overlay" onClick={() => { setShowItemModal(false); resetItemForm(); }}>
           <div className="mm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="mm-modal-header">
-              <h2>{editingItem ? '✏️ Edit Item' : '➕ Add Item'}</h2>
-              <button className="mm-modal-close" onClick={() => { setShowItemModal(false); resetItemForm(); }}>✕</button>
+              <h2>{editingItem ? <><FontAwesomeIcon icon={faPen} /> Edit Item</> : <><FontAwesomeIcon icon={faPlus} /> Add Item</>}</h2>
+              <button className="mm-modal-close" onClick={() => { setShowItemModal(false); resetItemForm(); }}><FontAwesomeIcon icon={faTimes} /></button>
             </div>
 
             <form onSubmit={handleItemSubmit} className="mm-modal-form">
               {/* Image Upload */}
               <div className="mm-form-section">
-                <h3>📷 Image</h3>
+                <h3><FontAwesomeIcon icon={faCamera} /> Image</h3>
                 <div className="mm-image-upload">
                   {imagePreview ? (
                     <div className="mm-image-preview">
                       <img src={imagePreview} alt="Preview" />
-                      <button type="button" className="mm-remove-image" onClick={() => { 
-                        setImageFile(null); 
+                      <button type="button" className="mm-remove-image" onClick={() => {
+                        setImageFile(null);
                         setImagePreview(null);
                         setItemForm({...itemForm, imageUrl: ''});
-                      }}>✕</button>
+                      }}><FontAwesomeIcon icon={faTimes} /></button>
                     </div>
                   ) : (
                     <label className="mm-upload-area">
                       <input type="file" accept="image/*" onChange={handleImageChange} hidden />
-                      <span>📷</span>
+                      <FontAwesomeIcon icon={faCamera} />
                       <span>Click to upload</span>
                     </label>
                   )}
@@ -620,7 +628,7 @@ const MenuManagement = () => {
 
               {/* Basic Info */}
               <div className="mm-form-section">
-                <h3>📝 Basic Info</h3>
+                <h3><FontAwesomeIcon icon={faStickyNote} /> Basic Info</h3>
                 <div className="mm-form-row">
                   <div className="mm-form-group">
                     <label>Product ID *</label>
@@ -673,7 +681,7 @@ const MenuManagement = () => {
 
               {/* Category & Type */}
               <div className="mm-form-section">
-                <h3>🏷️ Category & Type</h3>
+                <h3><FontAwesomeIcon icon={faTag} /> Category & Type</h3>
                 <div className="mm-form-row">
                   <div className="mm-form-group">
                     <label>Category *</label>
@@ -684,7 +692,7 @@ const MenuManagement = () => {
                     >
                       <option value="">Select</option>
                       {categories.map(cat => (
-                        <option key={cat} value={cat}>{getCategoryIcon(cat)} {cat}</option>
+                        <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
                   </div>
@@ -712,7 +720,7 @@ const MenuManagement = () => {
                           checked={itemForm.foodType === ft.value}
                           onChange={(e) => setItemForm({ ...itemForm, foodType: e.target.value })}
                         />
-                        <span>{ft.icon}</span>
+                        <FontAwesomeIcon icon={ft.icon} style={{color: ft.color}} />
                         <span>{ft.label}</span>
                       </label>
                     ))}
@@ -725,7 +733,7 @@ const MenuManagement = () => {
                   Cancel
                 </button>
                 <button type="submit" className="mm-btn-primary" disabled={uploadingImage}>
-                  {uploadingImage ? '⏳ Uploading...' : editingItem ? '💾 Update' : '➕ Create'}
+                  {uploadingImage ? <><FontAwesomeIcon icon={faHourglass} /> Uploading...</> : editingItem ? <><FontAwesomeIcon icon={faSave} /> Update</> : <><FontAwesomeIcon icon={faPlus} /> Create</>}
                 </button>
               </div>
             </form>
@@ -738,13 +746,13 @@ const MenuManagement = () => {
         <div className="mm-modal-overlay" onClick={() => { setShowPriceModal(false); resetPriceForm(); }}>
           <div className="mm-modal mm-modal-small" onClick={(e) => e.stopPropagation()}>
             <div className="mm-modal-header">
-              <h2>{editingPrice ? '✏️ Edit Price' : '💰 Add Price'}</h2>
-              <button className="mm-modal-close" onClick={() => { setShowPriceModal(false); resetPriceForm(); }}>✕</button>
+              <h2>{editingPrice ? <><FontAwesomeIcon icon={faPen} /> Edit Price</> : <><FontAwesomeIcon icon={faMoneyBill} /> Add Price</>}</h2>
+              <button className="mm-modal-close" onClick={() => { setShowPriceModal(false); resetPriceForm(); }}><FontAwesomeIcon icon={faTimes} /></button>
             </div>
 
             <form onSubmit={handlePriceSubmit} className="mm-modal-form">
               <div className="mm-price-item-info">
-                <span>{getCategoryIcon(getItemField(selectedItemForPrice, 'itemCategory'))}</span>
+                <FontAwesomeIcon icon={getCategoryIcon(getItemField(selectedItemForPrice, 'itemCategory'))} />
                 <div>
                   <strong>{getItemField(selectedItemForPrice, 'productName')}</strong>
                   <span>{getRestaurantName(getItemField(selectedItemForPrice, 'restaurantId'))}</span>
@@ -785,7 +793,7 @@ const MenuManagement = () => {
                   Cancel
                 </button>
                 <button type="submit" className="mm-btn-primary">
-                  {editingPrice ? '💾 Update' : '➕ Add'}
+                  {editingPrice ? <><FontAwesomeIcon icon={faSave} /> Update</> : <><FontAwesomeIcon icon={faPlus} /> Add</>}
                 </button>
               </div>
             </form>
