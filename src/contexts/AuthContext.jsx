@@ -150,6 +150,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Helper function to check if user is admin
+  const isAdmin = () => {
+    return user?.role?.toUpperCase() === 'ADMIN';
+  };
+
+  // Helper function to get user's restaurant ID (returns null for admin)
+  const getUserRestaurantId = () => {
+    if (isAdmin()) return null; // Admin can see all restaurants
+    return user?.restaurant_id || null;
+  };
+
+  // Helper function to check if user has access to a specific restaurant
+  const hasRestaurantAccess = (restaurantId) => {
+    if (isAdmin()) return true; // Admin has access to all
+    return user?.restaurant_id === restaurantId;
+  };
+
   const value = {
     user,
     login,
@@ -158,6 +175,9 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     isAuthenticated: !!user,
     loading,
+    isAdmin,
+    getUserRestaurantId,
+    hasRestaurantAccess,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

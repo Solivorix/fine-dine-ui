@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { itemAPI, priceAPI, restaurantAPI, uploadAPI } from '../services/api';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -13,6 +14,7 @@ import './MenuManagement.css';
 
 const MenuManagement = () => {
   const navigate = useNavigate();
+  const { isAdmin, getUserRestaurantId } = useAuth();
   const [items, setItems] = useState([]);
   const [prices, setPrices] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
@@ -23,8 +25,11 @@ const MenuManagement = () => {
   const [selectedItemForPrice, setSelectedItemForPrice] = useState(null);
   const [editingPrice, setEditingPrice] = useState(null);
 
+  // For non-admin users, default to their restaurant
+  const userRestaurantId = getUserRestaurantId();
+
   // Filters
-  const [filterRestaurant, setFilterRestaurant] = useState('all');
+  const [filterRestaurant, setFilterRestaurant] = useState(userRestaurantId || 'all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterFoodType, setFilterFoodType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -311,7 +316,7 @@ const MenuManagement = () => {
       productId: '',
       productName: '',
       productDescription: '',
-      restaurantId: '',
+      restaurantId: !isAdmin() && userRestaurantId ? userRestaurantId : '', // Pre-select for non-admin
       itemStatus: 'available',
       itemCategory: '',
       foodType: 'veg',
@@ -362,6 +367,11 @@ const MenuManagement = () => {
   };
 
   // FRONTEND FILTERING
+  // For non-admin users, always filter by their restaurant
+  const effectiveRestaurantFilter = !isAdmin() && userRestaurantId
+    ? userRestaurantId
+    : filterRestaurant;
+
   const filteredItems = items.filter(item => {
     const restaurantId = getItemField(item, 'restaurantId');
     const category = getItemField(item, 'itemCategory');
@@ -369,7 +379,7 @@ const MenuManagement = () => {
     const status = getItemField(item, 'itemStatus');
     const productName = getItemField(item, 'productName') || '';
 
-    const matchesRestaurant = filterRestaurant === 'all' || restaurantId === filterRestaurant;
+    const matchesRestaurant = effectiveRestaurantFilter === 'all' || restaurantId === effectiveRestaurantFilter;
     const matchesCategory = filterCategory === 'all' || category === filterCategory;
     const matchesFoodType = filterFoodType === 'all' || foodType === filterFoodType;
     const matchesStatus = filterStatus === 'all' || status === filterStatus;
@@ -457,14 +467,22 @@ const MenuManagement = () => {
           />
         </div>
 
-        <select value={filterRestaurant} onChange={(e) => setFilterRestaurant(e.target.value)}>
-          <option value="all">All Restaurants</option>
-          {restaurants.map(r => (
-            <option key={getRestField(r, 'restId')} value={getRestField(r, 'restId')}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+        {/* Restaurant filter - only show dropdown for admin users */}
+        {isAdmin() ? (
+          <select value={filterRestaurant} onChange={(e) => setFilterRestaurant(e.target.value)}>
+            <option value="all">All Restaurants</option>
+            {restaurants.map(r => (
+              <option key={getRestField(r, 'restId')} value={getRestField(r, 'restId')}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="mm-restaurant-badge">
+            <FontAwesomeIcon icon={faStore} />
+            {restaurants.find(r => getRestField(r, 'restId') === userRestaurantId)?.name || 'Your Restaurant'}
+          </div>
+        )}
 
         <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
           <option value="all">All Categories</option>
@@ -642,18 +660,24 @@ const MenuManagement = () => {
                   </div>
                   <div className="mm-form-group">
                     <label>Restaurant *</label>
-                    <select
-                      value={itemForm.restaurantId}
-                      onChange={(e) => setItemForm({ ...itemForm, restaurantId: e.target.value })}
-                      required
-                    >
-                      <option value="">Select</option>
-                      {restaurants.map(r => (
-                        <option key={getRestField(r, 'restId')} value={getRestField(r, 'restId')}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
+                    {isAdmin() ? (
+                      <select
+                        value={itemForm.restaurantId}
+                        onChange={(e) => setItemForm({ ...itemForm, restaurantId: e.target.value })}
+                        required
+                      >
+                        <option value="">Select</option>
+                        {restaurants.map(r => (
+                          <option key={getRestField(r, 'restId')} value={getRestField(r, 'restId')}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="mm-restaurant-display">
+                        {restaurants.find(r => getRestField(r, 'restId') === userRestaurantId)?.name || 'Your Restaurant'}
+                      </div>
+                    )}
                   </div>
                 </div>
 

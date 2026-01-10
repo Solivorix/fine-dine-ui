@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { orderAPI, restaurantAPI, itemAPI } from '../services/api';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -11,13 +12,16 @@ import './OrderManagement.css';
 
 const OrderManagement = () => {
   const navigate = useNavigate();
+  const { isAdmin, getUserRestaurantId } = useAuth();
   const [orders, setOrders] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
-  const [selectedRestaurant, setSelectedRestaurant] = useState('all');
+
+  // For non-admin users, default to their restaurant; for admin, show all
+  const userRestaurantId = getUserRestaurantId();
+  const [selectedRestaurant, setSelectedRestaurant] = useState(userRestaurantId || 'all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedGroups, setExpandedGroups] = useState(new Set());
@@ -141,14 +145,20 @@ const OrderManagement = () => {
     );
   };
 
+  // For non-admin users, always filter by their restaurant
+  const effectiveRestaurantFilter = !isAdmin() && userRestaurantId
+    ? userRestaurantId
+    : selectedRestaurant;
+
   const filteredOrders = orders.filter(order => {
-    const matchesRestaurant = selectedRestaurant === 'all' || 
-      order.restaurantId === selectedRestaurant;
-    const matchesStatus = selectedStatus === 'all' || 
-      (selectedStatus === 'pending' 
-        ? (!order.orderStatus || order.orderStatus === 'pending') 
+    // Restaurant filter: non-admin users can only see their restaurant's orders
+    const matchesRestaurant = effectiveRestaurantFilter === 'all' ||
+      order.restaurantId === effectiveRestaurantFilter;
+    const matchesStatus = selectedStatus === 'all' ||
+      (selectedStatus === 'pending'
+        ? (!order.orderStatus || order.orderStatus === 'pending')
         : order.orderStatus === selectedStatus);
-    const matchesSearch = searchTerm === '' || 
+    const matchesSearch = searchTerm === '' ||
       order.createdBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customerPhone?.includes(searchTerm) ||
       order.tableNumber?.toString().includes(searchTerm);
@@ -175,15 +185,20 @@ const OrderManagement = () => {
     }, 0);
   };
 
+  // Stats based on user's accessible orders (filtered by restaurant for non-admin)
+  const accessibleOrders = !isAdmin() && userRestaurantId
+    ? orders.filter(o => o.restaurantId === userRestaurantId)
+    : orders;
+
   const stats = {
-    total: orders.length,
-    pending: orders.filter(o => !o.orderStatus || o.orderStatus === 'pending').length,
-    confirmed: orders.filter(o => o.orderStatus === 'confirmed').length,
-    preparing: orders.filter(o => o.orderStatus === 'preparing').length,
-    ready: orders.filter(o => o.orderStatus === 'ready').length,
-    served: orders.filter(o => o.orderStatus === 'served').length,
-    completed: orders.filter(o => o.orderStatus === 'completed').length,
-    cancelled: orders.filter(o => o.orderStatus === 'cancelled').length
+    total: accessibleOrders.length,
+    pending: accessibleOrders.filter(o => !o.orderStatus || o.orderStatus === 'pending').length,
+    confirmed: accessibleOrders.filter(o => o.orderStatus === 'confirmed').length,
+    preparing: accessibleOrders.filter(o => o.orderStatus === 'preparing').length,
+    ready: accessibleOrders.filter(o => o.orderStatus === 'ready').length,
+    served: accessibleOrders.filter(o => o.orderStatus === 'served').length,
+    completed: accessibleOrders.filter(o => o.orderStatus === 'completed').length,
+    cancelled: accessibleOrders.filter(o => o.orderStatus === 'cancelled').length
   };
 
   const handleBack = () => navigate('/admin');
@@ -284,20 +299,30 @@ const OrderManagement = () => {
       </div>
 
       <div className="filters-section">
-        <div className="filter-group">
-          <label>Restaurant</label>
-          <select 
-            value={selectedRestaurant} 
-            onChange={(e) => setSelectedRestaurant(e.target.value)}
-          >
-            <option value="all">All Restaurants</option>
-            {restaurants.map(r => (
-              <option key={r.rest_id || r.restId} value={r.rest_id || r.restId}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Restaurant filter - only show for admin users */}
+        {isAdmin() ? (
+          <div className="filter-group">
+            <label>Restaurant</label>
+            <select
+              value={selectedRestaurant}
+              onChange={(e) => setSelectedRestaurant(e.target.value)}
+            >
+              <option value="all">All Restaurants</option>
+              {restaurants.map(r => (
+                <option key={r.rest_id || r.restId} value={r.rest_id || r.restId}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="filter-group">
+            <label>Restaurant</label>
+            <div className="restaurant-badge-fixed">
+              {restaurants.find(r => (r.rest_id || r.restId) === userRestaurantId)?.name || 'Your Restaurant'}
+            </div>
+          </div>
+        )}
         <div className="filter-group">
           <label>Status</label>
           <select 

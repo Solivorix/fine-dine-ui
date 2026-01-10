@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { orderAPI, restaurantAPI, itemAPI } from '../services/api';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -11,10 +12,14 @@ import './KitchenDisplay.css';
 
 const KitchenDisplay = () => {
   const navigate = useNavigate();
+  const { isAdmin, getUserRestaurantId } = useAuth();
   const [orders, setOrders] = useState([]);
   const [restaurants, setRestaurants] = useState([]);
   const [items, setItems] = useState([]);
-  const [selectedRestaurant, setSelectedRestaurant] = useState('all');
+
+  // For non-admin users, default to their restaurant
+  const userRestaurantId = getUserRestaurantId();
+  const [selectedRestaurant, setSelectedRestaurant] = useState(userRestaurantId || 'all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
@@ -700,9 +705,14 @@ const KitchenDisplay = () => {
     return new Date(Math.min(...times));
   };
 
-  const filteredOrders = selectedRestaurant === 'all'
+  // For non-admin users, always filter by their restaurant
+  const effectiveRestaurantFilter = !isAdmin() && userRestaurantId
+    ? userRestaurantId
+    : selectedRestaurant;
+
+  const filteredOrders = effectiveRestaurantFilter === 'all'
     ? orders
-    : orders.filter(order => order.restaurantId === selectedRestaurant);
+    : orders.filter(order => order.restaurantId === effectiveRestaurantFilter);
 
   const orderGroups = groupOrders(filteredOrders);
 
@@ -788,18 +798,25 @@ const KitchenDisplay = () => {
             )}
           </div>
 
-          <select
-            className="kds-restaurant-select"
-            value={selectedRestaurant}
-            onChange={(e) => setSelectedRestaurant(e.target.value)}
-          >
-            <option value="all">All Restaurants</option>
-            {restaurants.map(r => (
-              <option key={r.rest_id || r.restId} value={r.rest_id || r.restId}>
-                {r.name}
-              </option>
-            ))}
-          </select>
+          {/* Restaurant filter - only show dropdown for admin users */}
+          {isAdmin() ? (
+            <select
+              className="kds-restaurant-select"
+              value={selectedRestaurant}
+              onChange={(e) => setSelectedRestaurant(e.target.value)}
+            >
+              <option value="all">All Restaurants</option>
+              {restaurants.map(r => (
+                <option key={r.rest_id || r.restId} value={r.rest_id || r.restId}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="kds-restaurant-badge">
+              {restaurants.find(r => (r.rest_id || r.restId) === userRestaurantId)?.name || 'Your Restaurant'}
+            </div>
+          )}
 
           <button
             className={`btn-auto-refresh ${autoRefresh ? 'active' : ''}`}
